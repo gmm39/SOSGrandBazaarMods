@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "Cwi+m/cLbV8=",
+  "dgSpecHash": "k/IoGINgSWU=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Gage\\Coding\\.Net Projects\\LightControl\\LightControl\\LightControl.csproj",
+  "projectFilePath": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\LightControl\\LightControl\\LightControl.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Gage\\.nuget\\packages\\asmresolver\\6.0.0-beta.2\\asmresolver.6.0.0-beta.2.nupkg.sha512",
     "C:\\Users\\Gage\\.nuget\\packages\\asmresolver.dotnet\\6.0.0-beta.2\\asmresolver.dotnet.6.0.0-beta.2.nupkg.sha512",

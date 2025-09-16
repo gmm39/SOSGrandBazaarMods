@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Gage\\Coding\\.Net Projects\\LightControl\\LightControl\\LightControl.csproj": {}
+    "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\LightControl\\LightControl\\LightControl.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Gage\\Coding\\.Net Projects\\LightControl\\LightControl\\LightControl.csproj": {
+    "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\LightControl\\LightControl\\LightControl.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Gage\\Coding\\.Net Projects\\LightControl\\LightControl\\LightControl.csproj",
+        "projectUniqueName": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\LightControl\\LightControl\\LightControl.csproj",
         "projectName": "LightControl",
-        "projectPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\LightControl\\LightControl\\LightControl.csproj",
+        "projectPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\LightControl\\LightControl\\LightControl.csproj",
         "packagesPath": "C:\\Users\\Gage\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\LightControl\\LightControl\\obj\\",
+        "outputPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\LightControl\\LightControl\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Gage\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -87,7 +87,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.304\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.305\\RuntimeIdentifierGraph.json"
         }
       }
     }

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("StackSizeTweak")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+24112191173801446a430704ad936366a061552c")]
 [assembly: System.Reflection.AssemblyProductAttribute("StackSizeTweak")]
 [assembly: System.Reflection.AssemblyTitleAttribute("StackSizeTweak")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

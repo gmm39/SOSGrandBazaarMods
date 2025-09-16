@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "rvAsboKZ9ws=",
+  "dgSpecHash": "JmmPzxJxXcc=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Gage\\Coding\\.Net Projects\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements.csproj",
+  "projectFilePath": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Gage\\.nuget\\packages\\asmresolver\\6.0.0-beta.2\\asmresolver.6.0.0-beta.2.nupkg.sha512",
     "C:\\Users\\Gage\\.nuget\\packages\\asmresolver.dotnet\\6.0.0-beta.2\\asmresolver.dotnet.6.0.0-beta.2.nupkg.sha512",

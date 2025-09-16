@@ -22,7 +22,7 @@
 
     <ItemGroup>
       <Reference Include="Assembly-CSharp">
-        <HintPath>..\..\.References\Assembly-CSharp.dll</HintPath>
+        <HintPath>..\..\_References\Assembly-CSharp.dll</HintPath>
       </Reference>
     </ItemGroup>
 </Project>

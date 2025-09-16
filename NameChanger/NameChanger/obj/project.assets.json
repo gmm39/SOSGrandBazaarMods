@@ -4613,11 +4613,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Gage\\Coding\\.Net Projects\\NameChanger\\NameChanger\\NameChanger.csproj",
+      "projectUniqueName": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\NameChanger\\NameChanger\\NameChanger.csproj",
       "projectName": "NameChanger",
-      "projectPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\NameChanger\\NameChanger\\NameChanger.csproj",
+      "projectPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\NameChanger\\NameChanger\\NameChanger.csproj",
       "packagesPath": "C:\\Users\\Gage\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\NameChanger\\NameChanger\\obj\\",
+      "outputPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\NameChanger\\NameChanger\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Gage\\AppData\\Roaming\\NuGet\\NuGet.Config"

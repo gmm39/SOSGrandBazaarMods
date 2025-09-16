@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Gage\\Coding\\.Net Projects\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements.csproj": {}
+    "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Gage\\Coding\\.Net Projects\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements.csproj": {
+    "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Gage\\Coding\\.Net Projects\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements.csproj",
+        "projectUniqueName": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements.csproj",
         "projectName": "ConfigurableBazaarRequirements",
-        "projectPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements.csproj",
+        "projectPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements.csproj",
         "packagesPath": "C:\\Users\\Gage\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements\\obj\\",
+        "outputPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\ConfigurableBazaarRequirements\\ConfigurableBazaarRequirements\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Gage\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -87,7 +87,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.304\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.305\\RuntimeIdentifierGraph.json"
         }
       }
     }

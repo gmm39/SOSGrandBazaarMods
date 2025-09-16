@@ -22,19 +22,19 @@
 
     <ItemGroup>
       <Reference Include="Assembly-CSharp">
-        <HintPath>..\..\.References\Assembly-CSharp.dll</HintPath>
+        <HintPath>..\..\_References\Assembly-CSharp.dll</HintPath>
       </Reference>
       <Reference Include="DOTween">
-        <HintPath>..\..\.References\DOTween.dll</HintPath>
+        <HintPath>..\..\_References\DOTween.dll</HintPath>
       </Reference>
       <Reference Include="Il2Cppmscorlib">
-        <HintPath>..\..\.References\Il2Cppmscorlib.dll</HintPath>
+        <HintPath>..\..\_References\Il2Cppmscorlib.dll</HintPath>
       </Reference>
       <Reference Include="UnityEngine.CoreModule">
-        <HintPath>..\..\.References\UnityEngine.CoreModule.dll</HintPath>
+        <HintPath>..\..\_References\UnityEngine.CoreModule.dll</HintPath>
       </Reference>
       <Reference Include="UnityEngine.UI">
-        <HintPath>..\..\.References\UnityEngine.UI.dll</HintPath>
+        <HintPath>..\..\_References\UnityEngine.UI.dll</HintPath>
       </Reference>
     </ItemGroup>
 </Project>

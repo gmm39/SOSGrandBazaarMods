@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Gage\\Coding\\.Net Projects\\TimeScale\\TimeScale\\TimeScale.csproj": {}
+    "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\TimeScale\\TimeScale\\TimeScale.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Gage\\Coding\\.Net Projects\\TimeScale\\TimeScale\\TimeScale.csproj": {
+    "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\TimeScale\\TimeScale\\TimeScale.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Gage\\Coding\\.Net Projects\\TimeScale\\TimeScale\\TimeScale.csproj",
+        "projectUniqueName": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\TimeScale\\TimeScale\\TimeScale.csproj",
         "projectName": "TimeScale",
-        "projectPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\TimeScale\\TimeScale\\TimeScale.csproj",
+        "projectPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\TimeScale\\TimeScale\\TimeScale.csproj",
         "packagesPath": "C:\\Users\\Gage\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\TimeScale\\TimeScale\\obj\\",
+        "outputPath": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\TimeScale\\TimeScale\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Gage\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -87,7 +87,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.304\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.305\\RuntimeIdentifierGraph.json"
         }
       }
     }
