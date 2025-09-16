@@ -36,6 +36,9 @@ public class Plugin : BasePlugin
     private static ConfigEntry<float> PlayerInWeedSpeed;
     private static ConfigEntry<float> PlayerLimitMoveSpeed;
     private static ConfigEntry<float> PlayerBazaarLimitMoveSpeed;
+    private static ConfigEntry<float> HorseMaxSpeedBoost;
+    private static ConfigEntry<float> HorseAccelerationBoost;
+    private static ConfigEntry<float> HorseTurnSpeedBoost;
     
     // Greeting Tweaks
     private static ConfigEntry<float> GreetRange;
@@ -88,16 +91,22 @@ public class Plugin : BasePlugin
             "Enter damage sustained from typhoons.");
         
         // Movement Tweaks
-        PlayerWalkSpeed = Config.Bind("PlayerMovement", "Walk_Speed", 1.0f,
+        PlayerWalkSpeed = Config.Bind("MovementSettings", "Walk_Speed", 1.0f,
             "Enter Player walk speed.");
-        PlayerRunSpeed = Config.Bind("PlayerMovement", "Run_Speed", 5.0f,
+        PlayerRunSpeed = Config.Bind("MovementSettings", "Run_Speed", 5.0f,
             "Enter Player run speed.");
-        PlayerInWeedSpeed = Config.Bind("PlayerMovement", "In_Weed_Speed", 3.0f,
+        PlayerInWeedSpeed = Config.Bind("MovementSettings", "In_Weed_Speed", 3.0f,
             "Enter Player speed in weeds.");
-        PlayerLimitMoveSpeed = Config.Bind("PlayerMovement", "Limit_Move_Speed", 2.3f,
+        PlayerLimitMoveSpeed = Config.Bind("MovementSettings", "Limit_Move_Speed", 2.3f,
             "Enter Player speed limit during times of limited movement.");
-        PlayerBazaarLimitMoveSpeed = Config.Bind("PlayerMovement", "Bazaar_Limit_Move_Speed", 4.0f,
+        PlayerBazaarLimitMoveSpeed = Config.Bind("MovementSettings", "Bazaar_Limit_Move_Speed", 4.0f,
             "Enter Player speed limit during the bazaar.");
+        HorseMaxSpeedBoost = Config.Bind("MovementSettings", "Horse_Max_Speed_Boost", 0.0f,
+            "Enter amount to boost max horse speed. Base horse max speed = 7.0");
+        HorseAccelerationBoost = Config.Bind("MovementSettings", "Horse_Acceleration_Boost", 0.0f,
+            "Enter amount to boost horse acceleration. Base horse acceleration = 3.0");
+        HorseTurnSpeedBoost = Config.Bind("MovementSettings", "Horse_Turn_Speed_Boost", 0.0f,
+            "Enter amount to boost horse turn speed. Base horse turn speed = 120.0");
         
         // Greeting Tweaks
         GreetRange = Config.Bind("GreetingSettings", "Greeting_Range", 2.7f,
@@ -145,10 +154,11 @@ public class Plugin : BasePlugin
         {
             var masterDMgr = MasterDataManager.Instance.ItemMasterData;
             var gameSetting = SettingAssetManager.Instance.GameSetting;
-            var beeSetting = SettingAssetManager.Instance.BeekeepingSetting;
+            var beeSetting  = SettingAssetManager.Instance.BeekeepingSetting;
             var mushSetting = SettingAssetManager.Instance.MushroomFarmingSetting;
             var farmSetting = SettingAssetManager.Instance.FarmSetting;
             var playSetting = SettingAssetManager.Instance.PlayerSetting;
+            var hrSpdSetting = SettingAssetManager.Instance.PetAnimalCommonSetting.HorseSpeedSettings;
             
             // Item Tweaks
             foreach (var item in masterDMgr) if (item.StackSize != 1) item.StackSize = StackSize.Value;
@@ -170,6 +180,15 @@ public class Plugin : BasePlugin
             playSetting.PlayerInWeedSpeed = PlayerInWeedSpeed.Value;
             playSetting.PlayerLimitMoveSpeed = PlayerLimitMoveSpeed.Value;
             playSetting.PlayerBazaarLimitMoveSpeed = PlayerBazaarLimitMoveSpeed.Value;
+
+            foreach (var speed in hrSpdSetting)
+            {
+                speed.MaxSpeed += HorseMaxSpeedBoost.Value;
+                speed.AccelerationWalk += HorseAccelerationBoost.Value;
+                speed.AccelerationRun += HorseAccelerationBoost.Value;
+                speed.TurnSpeed += HorseTurnSpeedBoost.Value;
+            }
+            
             
             // Greeting Tweaks
             playSetting.GreetingRange = new Vector3(GreetRange.Value, 0.0f, 0.0f);
