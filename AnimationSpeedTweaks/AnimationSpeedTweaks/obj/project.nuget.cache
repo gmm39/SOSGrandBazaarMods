@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "ndI4zxXtk1U=",
+  "dgSpecHash": "sOeJUXzG/Dc=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Gage\\Coding\\.Net Projects\\AnimationSpeedTweaks\\AnimationSpeedTweaks\\AnimationSpeedTweaks.csproj",
+  "projectFilePath": "C:\\Users\\Gage\\Coding\\.Net Projects\\SOSGrandBazaarMods\\AnimationSpeedTweaks\\AnimationSpeedTweaks\\AnimationSpeedTweaks.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Gage\\.nuget\\packages\\asmresolver\\6.0.0-beta.2\\asmresolver.6.0.0-beta.2.nupkg.sha512",
     "C:\\Users\\Gage\\.nuget\\packages\\asmresolver.dotnet\\6.0.0-beta.2\\asmresolver.dotnet.6.0.0-beta.2.nupkg.sha512",

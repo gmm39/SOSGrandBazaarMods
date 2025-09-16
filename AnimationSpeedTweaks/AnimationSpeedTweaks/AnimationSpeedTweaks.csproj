@@ -22,13 +22,13 @@
 
     <ItemGroup>
       <Reference Include="Assembly-CSharp">
-        <HintPath>..\..\.References\Assembly-CSharp.dll</HintPath>
+        <HintPath>..\..\_References\Assembly-CSharp.dll</HintPath>
       </Reference>
       <Reference Include="BokuMono.Utility">
-        <HintPath>..\..\.References\BokuMono.Utility.dll</HintPath>
+        <HintPath>..\..\_References\BokuMono.Utility.dll</HintPath>
       </Reference>
       <Reference Include="Il2Cppmscorlib">
-        <HintPath>..\..\.References\Il2Cppmscorlib.dll</HintPath>
+        <HintPath>..\..\_References\Il2Cppmscorlib.dll</HintPath>
       </Reference>
     </ItemGroup>
 </Project>
