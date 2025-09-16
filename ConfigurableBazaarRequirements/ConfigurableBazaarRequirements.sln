@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConfigurableBazaarRequirements", "ConfigurableBazaarRequirements\ConfigurableBazaarRequirements.csproj", "{4C172CBA-A2E3-4F2B-9B2C-0AF9B5AC738D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4C172CBA-A2E3-4F2B-9B2C-0AF9B5AC738D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C172CBA-A2E3-4F2B-9B2C-0AF9B5AC738D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C172CBA-A2E3-4F2B-9B2C-0AF9B5AC738D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C172CBA-A2E3-4F2B-9B2C-0AF9B5AC738D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
