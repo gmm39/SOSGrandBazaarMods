@@ -1,0 +1,17 @@
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\bin\Debug\net6.0\FadeFix.deps.json
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\bin\Debug\net6.0\FadeFix.dll
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\bin\Debug\net6.0\FadeFix.pdb
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\bin\Debug\net6.0\Assembly-CSharp.dll
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\bin\Debug\net6.0\UnityEngine.CoreModule.dll
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\bin\Debug\net6.0\BokuMono.Utility.dll
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\obj\Debug\net6.0\FadeFix.csproj.AssemblyReference.cache
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\obj\Debug\net6.0\MyPluginInfo.cs
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\obj\Debug\net6.0\FadeFix.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\obj\Debug\net6.0\FadeFix.AssemblyInfoInputs.cache
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\obj\Debug\net6.0\FadeFix.AssemblyInfo.cs
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\obj\Debug\net6.0\FadeFix.csproj.CoreCompileInputs.cache
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\obj\Debug\net6.0\FadeFix.csproj.Up2Date
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\obj\Debug\net6.0\FadeFix.dll
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\obj\Debug\net6.0\refint\FadeFix.dll
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\obj\Debug\net6.0\FadeFix.pdb
+C:\Users\Gage\Coding\.Net Projects\FadeFix\FadeFix\obj\Debug\net6.0\ref\FadeFix.dll
