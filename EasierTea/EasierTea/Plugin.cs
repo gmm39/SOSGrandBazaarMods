@@ -30,10 +30,10 @@ public class Plugin : BasePlugin
         Log = base.Log;
         Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
-        Harmony.CreateAndPatchAll(typeof(TestPatch1));
+        Harmony.CreateAndPatchAll(typeof(TeaPatch));
     }
     
-    private static class TestPatch1
+    private static class TeaPatch
     {
         [HarmonyPatch(typeof(UITitleMainPage), "PlayTitleLogoAnimation")]
         [HarmonyPostfix]
