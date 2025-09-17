@@ -42,10 +42,10 @@ public class Plugin : BasePlugin
                 (x => x.CraftingItemId == 121900));
             
             result.RequiredItemId[0] = 110100;
-            result.RequiredItemStack[1] = woodStoneCount.Value;
+            result.RequiredItemStack[0] = woodStoneCount.Value;
             
             result.RequiredItemId[1] = 110000;
-            result.RequiredItemStack[2] = woodStoneCount.Value;
+            result.RequiredItemStack[1] = woodStoneCount.Value;
             
             result.Time = time.Value;
         }
