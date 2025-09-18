@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
@@ -19,6 +20,8 @@ public class Plugin : BasePlugin
     private static ConfigEntry<float> DayBloom;
     private static ConfigEntry<float> NightBloom;
     private static ConfigEntry<float> NightTimeOffset;
+    //private static ConfigEntry<float> NightTimeOffsetSpring // -0.25f
+    //private static ConfigEntry<float> NightTimeOffsetSummer // -0.5f
     private static ConfigEntry<float> IndoorIntensityOffset;
 
     public override void Load()
@@ -55,6 +58,7 @@ public class Plugin : BasePlugin
             var nightEnd = __instance.SeasonalTimeSetting.nightEnd;
             var isNight = currentTime >= nightStart || currentTime <= nightEnd;
             var isIndoor = ManagedSingletonMonoBehaviour<FieldManager>.Instance.CurrentFieldMasterData.IsInDoor;
+            var transitionLength = 1.5f;
 
             // Applies IndoorIntensityOffset if isIndoor
             var nightIntensity = isIndoor ?
@@ -64,15 +68,11 @@ public class Plugin : BasePlugin
             switch (isNight)
             {
                 // Ramp down
-                // Math: StartVal - (StartVal - EndVal) * Clamp(time - startTime, 0.0f, lengthHours)
-                case true when currentTime < nightStart + 1 && currentTime > nightEnd:
-                    __instance.directionalLight.intensity =
-                        DayIntensity.Value - (DayIntensity.Value - nightIntensity) *
-                        Math.Clamp(currentTime - nightStart, 0.0f, 1.0f);
-
+                case true when currentTime < nightStart + transitionLength && currentTime > nightEnd:
+                    __instance.directionalLight.intensity = 
+                        Mathf.Lerp(DayIntensity.Value, nightIntensity, (currentTime - nightStart) / transitionLength);
                     __instance.postProcessSetting.bloomIntensity =
-                        DayBloom.Value - (DayBloom.Value - NightBloom.Value) *
-                        Math.Clamp(currentTime - nightStart, 0.0f, 1.0f);
+                        Mathf.Lerp(DayBloom.Value, NightBloom.Value, (currentTime - nightStart) / transitionLength);
                     break;
                 // Sustain
                 case true:
@@ -81,13 +81,10 @@ public class Plugin : BasePlugin
                     break;
                 // Ramp up (only seeing rarely right before you pass out)
                 case false when currentTime <= 5.0f:
-                    __instance.directionalLight.intensity =
-                        nightIntensity - (nightIntensity - DayIntensity.Value) *
-                        Math.Clamp(currentTime - nightEnd, 0.0f, 1.0f);
-
-                    __instance.postProcessSetting.bloomIntensity =
-                        NightBloom.Value - (NightBloom.Value - DayBloom.Value) *
-                        Math.Clamp(currentTime - nightEnd, 0.0f, 1.0f);
+                    __instance.directionalLight.intensity = 
+                        Mathf.Lerp(nightIntensity, DayIntensity.Value, currentTime - nightEnd);
+                    __instance.postProcessSetting.bloomIntensity = 
+                        Mathf.Lerp(NightBloom.Value, DayBloom.Value, currentTime - nightEnd);
                     break;
                 // Daytime
                 default:
@@ -96,12 +93,12 @@ public class Plugin : BasePlugin
                     break;
             }
             /*
-            Log.LogInfo("Intensity: " + __instance.directionalLight.intensity + " Bloom: " +
-                        __instance.postProcessSetting.bloomIntensity +
-                        " CurrentTime: " + currentTime + " NightStart: " + nightStart + " NightEnd: " + nightEnd);
+            string output = "Intensity: " + __instance.directionalLight.intensity + " Bloom: " +
+                            __instance.postProcessSetting.bloomIntensity + " NightStart: " + nightStart +
+                            " NightEnd: " + nightEnd + " Night: " + isNight +
+                            " Indoor: " + FieldManager.Instance.CurrentFieldMasterData.IsInDoor;
 
-            Log.LogInfo("Night: " + isNight + " Indoor: " +
-                        ManagedSingletonMonoBehaviour<FieldManager>.Instance.CurrentFieldMasterData.IsInDoor);
+            Log.LogInfo(output);
             */
         }
     }
