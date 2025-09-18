@@ -49,57 +49,116 @@ public class Plugin : BasePlugin
     [HarmonyPatch]
     private class LightPatch
     {
+        private enum State
+        {
+            Day,
+            DayToNight,
+            Night,
+            NightToDay
+        }
+
+        private static float currentTime;
+        private static float nightStart;
+        private static float nightEnd;
+
+        private static float nightIntensity;
+        private static float dayIntensity;
+        
+        private static bool isIndoor;
+        private static State state;
+
+        private static float lastTime = -1.0f;
+        private static float transitionLength = 1.0f;
+
+        private static void SetValues(LightControlManager __instance)
+        {
+            currentTime = __instance.CurrentTime;
+            nightStart = __instance.SeasonalTimeSetting.nightStart + NightTimeOffset.Value;
+            nightEnd = __instance.SeasonalTimeSetting.nightEnd;
+            
+            isIndoor = FieldManager.Instance.CurrentFieldMasterData.IsInDoor;
+        }
+
+        private static void SetState()
+        { 
+            if (currentTime >= 5.0f && currentTime < nightStart)
+            {
+                state = State.Day;
+            }
+            else if (currentTime > 5.0f && currentTime <= nightStart + transitionLength)
+            {
+                state = State.DayToNight;
+            }
+            else if (currentTime >= nightStart || currentTime <= nightEnd)
+            {
+                state = State.Night;
+            }
+            else
+            {
+                state = State.NightToDay;
+            }
+        }
+
+        private static void CalculateIntensity()
+        {
+            nightIntensity = isIndoor ?
+                Math.Clamp(NightIntensity.Value + IndoorIntensityOffset.Value, NightIntensity.Value, DayIntensity.Value) :
+                NightIntensity.Value;
+        }
+
+        private static void LogOutput(LightControlManager __instance)
+        {
+            if ((int)(lastTime * 10) == (int)(Math.Round(currentTime, 1) * 10)) return;
+            lastTime = (float)Math.Round(currentTime, 1);
+            var msg = string.Format(
+                "Time: {0:f1} Intensity: {1:f3} Bloom: {2:f3} NightStart: {3:f1} NightEnd: {4:f1}" +
+                " State: {5} Indoor: {6}", Math.Round(currentTime, 1), __instance.directionalLight.intensity,
+                __instance.postProcessSetting.bloomIntensity, nightStart, nightEnd, state,
+                FieldManager.Instance.CurrentFieldMasterData.IsInDoor);
+            Log.LogInfo(msg);
+        }
+        
         [HarmonyPostfix]
         [HarmonyPatch(typeof(LightControlManager), "Update")]
         public static void Postfix(LightControlManager __instance)
         {
-            var currentTime = __instance.CurrentTime;
-            var nightStart = __instance.SeasonalTimeSetting.nightStart + NightTimeOffset.Value;
-            var nightEnd = __instance.SeasonalTimeSetting.nightEnd;
-            var isNight = currentTime >= nightStart || currentTime <= nightEnd;
-            var isIndoor = ManagedSingletonMonoBehaviour<FieldManager>.Instance.CurrentFieldMasterData.IsInDoor;
-            var transitionLength = 1.5f;
+            SetValues(__instance);
+            SetState();
 
-            // Applies IndoorIntensityOffset if isIndoor
-            var nightIntensity = isIndoor ?
-                Math.Clamp(NightIntensity.Value + IndoorIntensityOffset.Value, NightIntensity.Value, DayIntensity.Value) :
-                NightIntensity.Value;
+            CalculateIntensity();
 
-            switch (isNight)
+            switch (state)
             {
-                // Ramp down
-                case true when currentTime < nightStart + transitionLength && currentTime > nightEnd:
+                case State.Day:
+                    __instance.directionalLight.intensity = DayIntensity.Value;
+                    __instance.postProcessSetting.bloomIntensity = DayBloom.Value;
+                    break;
+                
+                case State.DayToNight:
                     __instance.directionalLight.intensity = 
                         Mathf.Lerp(DayIntensity.Value, nightIntensity, (currentTime - nightStart) / transitionLength);
                     __instance.postProcessSetting.bloomIntensity =
                         Mathf.Lerp(DayBloom.Value, NightBloom.Value, (currentTime - nightStart) / transitionLength);
                     break;
-                // Sustain
-                case true:
+                
+                case State.Night:
                     __instance.directionalLight.intensity = nightIntensity;
                     __instance.postProcessSetting.bloomIntensity = NightBloom.Value;
                     break;
-                // Ramp up (only seeing rarely right before you pass out)
-                case false when currentTime <= 5.0f:
+                
+                case State.NightToDay:
                     __instance.directionalLight.intensity = 
                         Mathf.Lerp(nightIntensity, DayIntensity.Value, currentTime - nightEnd);
                     __instance.postProcessSetting.bloomIntensity = 
                         Mathf.Lerp(NightBloom.Value, DayBloom.Value, currentTime - nightEnd);
                     break;
-                // Daytime
+                
                 default:
-                    __instance.directionalLight.intensity = DayIntensity.Value;
-                    __instance.postProcessSetting.bloomIntensity = DayBloom.Value;
+                    Log.LogInfo("Improper state!");
                     break;
             }
-            /*
-            string output = "Intensity: " + __instance.directionalLight.intensity + " Bloom: " +
-                            __instance.postProcessSetting.bloomIntensity + " NightStart: " + nightStart +
-                            " NightEnd: " + nightEnd + " Night: " + isNight +
-                            " Indoor: " + FieldManager.Instance.CurrentFieldMasterData.IsInDoor;
 
-            Log.LogInfo(output);
-            */
+            LogOutput(__instance);
         }
     }
 }
