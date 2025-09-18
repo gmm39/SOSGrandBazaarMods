@@ -15,30 +15,61 @@ namespace LightControl;
 public class Plugin : BasePlugin
 {
     private static new ManualLogSource Log;
+    
     private static ConfigEntry<float> DayIntensity;
     private static ConfigEntry<float> NightIntensity;
     private static ConfigEntry<float> DayBloom;
     private static ConfigEntry<float> NightBloom;
     private static ConfigEntry<float> NightTimeOffset;
-    //private static ConfigEntry<float> NightTimeOffsetSpring // -0.25f
-    //private static ConfigEntry<float> NightTimeOffsetSummer // -0.5f
     private static ConfigEntry<float> IndoorIntensityOffset;
+    
+    private static ConfigEntry<float> NightTimeOffsetSpring;
+    private static ConfigEntry<float> TransitionLengthSpring;
+    
+    private static ConfigEntry<float> NightTimeOffsetSummer;
+    private static ConfigEntry<float> TransitionLengthSummer;
+    
+    private static ConfigEntry<float> NightTimeOffsetAutumn;
+    private static ConfigEntry<float> TransitionLengthAutumn;
+    
+    private static ConfigEntry<float> NightTimeOffsetWinter;
+    private static ConfigEntry<float> TransitionLengthWinter;
 
     public override void Load()
     {
         // Plugin startup logic
-        DayIntensity = Config.Bind("Intensity", "DayIntensity", 1.2f,
+        DayIntensity = Config.Bind("0. Intensity", "DayIntensity", 1.2f,
             "Lower is darker, higher is brighter. GameDefault: 1.2");
-        NightIntensity = Config.Bind("Intensity", "NightIntensity", 0.7f,
+        NightIntensity = Config.Bind("0. Intensity", "NightIntensity", 0.75f,
             "Lower is darker, higher is brighter. GameDefault: 1.2");
-        DayBloom = Config.Bind("Bloom", "DayBloom", 1.7f,
+        
+        DayBloom = Config.Bind("1. Bloom", "DayBloom", 1.0f,
             "The amount of bloom during the day. GameDefault: 1.7");
-        NightBloom = Config.Bind("Bloom", "NightBloom", 3.0f,
+        NightBloom = Config.Bind("1. Bloom", "NightBloom", 1.7f,
             "The amount of bloom during the night. GameDefault: 1.7");
-        NightTimeOffset = Config.Bind("Miscellaneous", "NightTimeOffset", -0.25f,
-            "Offset applied to night start time.");
-        IndoorIntensityOffset = Config.Bind("Miscellaneous", "IndoorIntensityOffset", 0.2f,
+        
+        IndoorIntensityOffset = Config.Bind("2. Miscellaneous", "IndoorIntensityOffset", 0.05f,
             "Offset indoor intensity during night.");
+        
+        NightTimeOffsetSpring = Config.Bind("3. Spring", "NightTimeOffset", -0.25f,
+            "Offset applied to night start time.");
+        TransitionLengthSpring = Config.Bind("3. Spring", "TransitionLength", 1.0f,
+            "Length of time for the transition between day and night.");
+        
+        NightTimeOffsetSummer = Config.Bind("4. Summer", "NightTimeOffset", -0.75f,
+            "Offset applied to night start time.");
+        TransitionLengthSummer = Config.Bind("4. Summer", "TransitionLength", 1.5f,
+            "Length of time for the transition between day and night.");
+        
+        NightTimeOffsetAutumn = Config.Bind("5. Autumn", "NightTimeOffset", -0.25f,
+            "Offset applied to night start time.");
+        TransitionLengthAutumn = Config.Bind("5. Autumn", "TransitionLength", 1.0f,
+            "Length of time for the transition between day and night.");
+        
+        NightTimeOffsetWinter = Config.Bind("6. Winter", "NightTimeOffset", -0.25f,
+            "Offset applied to night start time.");
+        TransitionLengthWinter = Config.Bind("6. Winter", "TransitionLength", 1.0f,
+            "Length of time for the transition between day and night.");
 
         Log = base.Log;
         Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
@@ -60,20 +91,49 @@ public class Plugin : BasePlugin
         private static float currentTime;
         private static float nightStart;
         private static float nightEnd;
+        private static float transitionLength;
 
         private static float nightIntensity;
         private static float dayIntensity;
         
         private static bool isIndoor;
+        private static BokuMonoWeather weather;
+        private static BokuMonoSeason season;
         private static State state;
 
         private static float lastTime = -1.0f;
-        private static float transitionLength = 1.0f;
 
         private static void SetValues(LightControlManager __instance)
         {
+            weather = __instance.currentWeather;
+            season = DateManager.Instance.FixedDate.Season;
+            var offset = 0.0f;
+
+            switch (season)
+            {
+                case BokuMonoSeason.Spring:
+                    offset = NightTimeOffsetSpring.Value;
+                    transitionLength = TransitionLengthSpring.Value;
+                    break;
+                case BokuMonoSeason.Summer:
+                    offset = NightTimeOffsetSummer.Value;
+                    transitionLength = TransitionLengthSummer.Value;
+                    break;
+                case BokuMonoSeason.Autumn:
+                    offset = NightTimeOffsetAutumn.Value;
+                    transitionLength = TransitionLengthAutumn.Value;
+                    break;
+                case BokuMonoSeason.Winter:
+                    offset = NightTimeOffsetWinter.Value;
+                    transitionLength = TransitionLengthWinter.Value;
+                    break;
+                default:
+                    Log.LogError($"Unknown season {season}");
+                    break;
+            }
+            
             currentTime = __instance.CurrentTime;
-            nightStart = __instance.SeasonalTimeSetting.nightStart + NightTimeOffset.Value;
+            nightStart = __instance.SeasonalTimeSetting.nightStart + offset;
             nightEnd = __instance.SeasonalTimeSetting.nightEnd;
             
             isIndoor = FieldManager.Instance.CurrentFieldMasterData.IsInDoor;
@@ -106,15 +166,21 @@ public class Plugin : BasePlugin
                 NightIntensity.Value;
         }
 
+        private static float ShapeCurve(float t)
+        {
+            // easeInOutQuad
+            return (float)(t < 0.5 ? 2 * t * t : 1 - Math.Pow(-2 * t + 2, 2) / 2);
+        }
+
         private static void LogOutput(LightControlManager __instance)
         {
             if ((int)(lastTime * 10) == (int)(Math.Round(currentTime, 1) * 10)) return;
             lastTime = (float)Math.Round(currentTime, 1);
             var msg = string.Format(
-                "Time: {0:f1} Intensity: {1:f3} Bloom: {2:f3} NightStart: {3:f1} NightEnd: {4:f1}" +
-                " State: {5} Indoor: {6}", Math.Round(currentTime, 1), __instance.directionalLight.intensity,
+                "Time: {0:f1} | Intensity: {1:f3} | Bloom: {2:f3} | NightStart: {3:f1} | NightEnd: {4:f1} |" +
+                " State: {5} | Indoor: {6} | Season: {7} | Weather: {8}", Math.Round(currentTime, 1), __instance.directionalLight.intensity,
                 __instance.postProcessSetting.bloomIntensity, nightStart, nightEnd, state,
-                FieldManager.Instance.CurrentFieldMasterData.IsInDoor);
+                isIndoor, season, weather);
             Log.LogInfo(msg);
         }
         
@@ -136,9 +202,9 @@ public class Plugin : BasePlugin
                 
                 case State.DayToNight:
                     __instance.directionalLight.intensity = 
-                        Mathf.Lerp(DayIntensity.Value, nightIntensity, (currentTime - nightStart) / transitionLength);
+                        Mathf.Lerp(DayIntensity.Value, nightIntensity, ShapeCurve((currentTime - nightStart) / transitionLength));
                     __instance.postProcessSetting.bloomIntensity =
-                        Mathf.Lerp(DayBloom.Value, NightBloom.Value, (currentTime - nightStart) / transitionLength);
+                        Mathf.Lerp(DayBloom.Value, NightBloom.Value, ShapeCurve((currentTime - nightStart) / transitionLength));
                     break;
                 
                 case State.Night:
@@ -154,7 +220,7 @@ public class Plugin : BasePlugin
                     break;
                 
                 default:
-                    Log.LogInfo("Improper state!");
+                    Log.LogError($"Unknown state {state}");
                     break;
             }
 
