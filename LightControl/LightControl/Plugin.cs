@@ -21,7 +21,9 @@ public class Plugin : BasePlugin
     private static ConfigEntry<float> DayBloom;
     private static ConfigEntry<float> NightBloom;
     private static ConfigEntry<float> NightTimeOffset;
-    private static ConfigEntry<float> IndoorIntensityOffset;
+    
+    private static ConfigEntry<float> IndoorIntensityOffsetDay;
+    private static ConfigEntry<float> IndoorIntensityOffsetNight;
     
     private static ConfigEntry<float> NightTimeOffsetSpring;
     private static ConfigEntry<float> TransitionLengthSpring;
@@ -61,7 +63,9 @@ public class Plugin : BasePlugin
         NightBloom = Config.Bind("1. Bloom", "NightBloom", 1.7f,
             "The amount of bloom during the night. GameDefault: 1.7");
         
-        IndoorIntensityOffset = Config.Bind("2. Miscellaneous", "IndoorIntensityOffset", 0.05f,
+        IndoorIntensityOffsetDay = Config.Bind("2. Indoor", "IndoorIntensityOffsetDay", 0.0f,
+            "Offset indoor intensity during day.");
+        IndoorIntensityOffsetNight = Config.Bind("2. Indoor", "IndoorIntensityOffsetNight", 0.05f,
             "Offset indoor intensity during night.");
         
         NightTimeOffsetSpring = Config.Bind("3. Spring", "NightTimeOffset", -0.25f,
@@ -214,8 +218,12 @@ public class Plugin : BasePlugin
                     break;
             }
             
-            if (isIndoor) nightIntensity = Math.Clamp(BaseNightIntensity.Value + IndoorIntensityOffset.Value,
-                BaseNightIntensity.Value, BaseDayIntensity.Value);
+            if (isIndoor) {
+                dayIntensity = Math.Clamp(dayIntensity + IndoorIntensityOffsetDay.Value,
+                    BaseNightIntensity.Value, BaseDayIntensity.Value);
+                nightIntensity = Math.Clamp(BaseNightIntensity.Value + IndoorIntensityOffsetNight.Value, 
+                    BaseNightIntensity.Value, BaseDayIntensity.Value);
+            }
         }
 
         private static void SetState()

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LightControl")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f83dc0609cdf6f606c5d9fafddc0f58722c6a685")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e5635c27dbb70d0ec2a8eacedc19bd10a98c14ed")]
 [assembly: System.Reflection.AssemblyProductAttribute("LightControl")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LightControl")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
