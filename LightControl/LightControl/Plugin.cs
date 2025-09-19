@@ -38,6 +38,15 @@ public class Plugin : BasePlugin
     private static ConfigEntry<float> NightTimeOffsetWinter;
     private static ConfigEntry<float> TransitionLengthWinter;
     private static ConfigEntry<float> NightIntensityOffsetWinter;
+    
+    private static ConfigEntry<float> DayIntensityOffsetSunny;
+    private static ConfigEntry<float> DayIntensityOffsetRainy;
+    private static ConfigEntry<float> DayIntensityOffsetSnowy;
+    private static ConfigEntry<float> DayIntensityOffsetTyphoon;
+    private static ConfigEntry<float> DayIntensityOffsetHeavySnow;
+    private static ConfigEntry<float> DayIntensityOffsetCloudy;
+    private static ConfigEntry<float> DayIntensityOffsetHeavyRain;
+    private static ConfigEntry<float> DayIntensityOffsetMax;
 
     public override void Load()
     {
@@ -82,9 +91,27 @@ public class Plugin : BasePlugin
             "Length of time for the transition between day and night.");
         NightIntensityOffsetWinter = Config.Bind("6. Winter", "NightIntensityOffset", -0.15f,
             "Offset applied to base night intensity.");
+        
+        DayIntensityOffsetSunny = Config.Bind("7. Weather", "DayIntensityOffsetSunny", 0.0f,
+            "Offset applied to day intensity during sunny weather.");
+        DayIntensityOffsetRainy = Config.Bind("7. Weather", "DayIntensityOffsetRainy", -0.066f,
+            "Offset applied to day intensity during rainy weather.");
+        DayIntensityOffsetSnowy = Config.Bind("7. Weather", "DayIntensityOffsetSnowy", -0.066f,
+            "Offset applied to day intensity during snowy weather.");
+        DayIntensityOffsetTyphoon = Config.Bind("7. Weather", "DayIntensityOffsetTyphoon", -0.175f,
+            "Offset applied to day intensity during typhoon weather.");
+        DayIntensityOffsetHeavySnow = Config.Bind("7. Weather", "DayIntensityOffsetHeavySnow", -0.10f,
+            "Offset applied to day intensity during heavy snow weather.");
+        DayIntensityOffsetCloudy = Config.Bind("7. Weather", "DayIntensityOffsetCloudy", -0.033f,
+            "Offset applied to day intensity during cloudy weather.");
+        DayIntensityOffsetHeavyRain = Config.Bind("7. Weather", "DayIntensityOffsetHeavyRain", -0.10f,
+            "Offset applied to day intensity during heavy rain weather.");
+        DayIntensityOffsetMax = Config.Bind("7. Weather", "DayIntensityOffsetMax", 0.0f,
+            "Offset applied to day intensity during max weather. Max weather appears in the code as a weather" +
+            "option but I have not seen it used.");
 
         Log = base.Log;
-        Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded! v2");
+        Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
         Harmony.CreateAndPatchAll(typeof(LightPatch));
     }
@@ -119,6 +146,10 @@ public class Plugin : BasePlugin
         {
             weather = __instance.currentWeather;
             season = DateManager.Instance.FixedDate.Season;
+            isIndoor = FieldManager.Instance.CurrentFieldMasterData.IsInDoor;
+            
+            nightIntensity = BaseNightIntensity.Value;
+            dayIntensity = BaseDayIntensity.Value;
             var offset = 0.0f;
 
             switch (season)
@@ -126,22 +157,22 @@ public class Plugin : BasePlugin
                 case BokuMonoSeason.Spring:
                     offset = NightTimeOffsetSpring.Value;
                     transitionLength = TransitionLengthSpring.Value;
-                    nightIntensity = NightIntensityOffsetSpring.Value;
+                    nightIntensity += NightIntensityOffsetSpring.Value;
                     break;
                 case BokuMonoSeason.Summer:
                     offset = NightTimeOffsetSummer.Value;
                     transitionLength = TransitionLengthSummer.Value;
-                    nightIntensity = NightIntensityOffsetSummer.Value;
+                    nightIntensity += NightIntensityOffsetSummer.Value;
                     break;
                 case BokuMonoSeason.Autumn:
                     offset = NightTimeOffsetAutumn.Value;
                     transitionLength = TransitionLengthAutumn.Value;
-                    nightIntensity = NightIntensityOffsetAutumn.Value;
+                    nightIntensity += NightIntensityOffsetAutumn.Value;
                     break;
                 case BokuMonoSeason.Winter:
                     offset = NightTimeOffsetWinter.Value;
                     transitionLength = TransitionLengthWinter.Value;
-                    nightIntensity = NightIntensityOffsetWinter.Value;
+                    nightIntensity += NightIntensityOffsetWinter.Value;
                     break;
                 default:
                     Log.LogError($"Unknown season {season}");
@@ -151,14 +182,40 @@ public class Plugin : BasePlugin
             currentTime = __instance.CurrentTime;
             nightStart = __instance.SeasonalTimeSetting.nightStart + offset;
             nightEnd = __instance.SeasonalTimeSetting.nightEnd;
-            
-            isIndoor = FieldManager.Instance.CurrentFieldMasterData.IsInDoor;
 
-            if (!isIndoor)
-                nightIntensity += BaseNightIntensity.Value;
-            else
-                nightIntensity = Math.Clamp(BaseNightIntensity.Value + IndoorIntensityOffset.Value,
-                    BaseNightIntensity.Value, BaseDayIntensity.Value);
+            switch (weather)
+            {
+                case BokuMonoWeather.Sunny:
+                    dayIntensity += DayIntensityOffsetSunny.Value;
+                    break;
+                case BokuMonoWeather.Rainy:
+                    dayIntensity += DayIntensityOffsetRainy.Value;
+                    break;
+                case BokuMonoWeather.Snowy:
+                    dayIntensity += DayIntensityOffsetSnowy.Value;
+                    break;
+                case BokuMonoWeather.Typhoon:
+                    dayIntensity += DayIntensityOffsetTyphoon.Value;
+                    break;
+                case BokuMonoWeather.HeavySnow:
+                    dayIntensity += DayIntensityOffsetHeavySnow.Value;
+                    break;
+                case BokuMonoWeather.Cloudy:
+                    dayIntensity += DayIntensityOffsetCloudy.Value;
+                    break;
+                case BokuMonoWeather.HeavyRain:
+                    dayIntensity += DayIntensityOffsetHeavyRain.Value;
+                    break;
+                case BokuMonoWeather.Max:
+                    dayIntensity += DayIntensityOffsetMax.Value;
+                    break;
+                default:
+                    Log.LogError($"Unknown weather {weather}");
+                    break;
+            }
+            
+            if (isIndoor) nightIntensity = Math.Clamp(BaseNightIntensity.Value + IndoorIntensityOffset.Value,
+                BaseNightIntensity.Value, BaseDayIntensity.Value);
         }
 
         private static void SetState()
@@ -209,35 +266,31 @@ public class Plugin : BasePlugin
             switch (state)
             {
                 case State.Day:
-                    __instance.directionalLight.intensity = BaseDayIntensity.Value;
+                    __instance.directionalLight.intensity = dayIntensity;
                     __instance.postProcessSetting.bloomIntensity = DayBloom.Value;
                     break;
-                
                 case State.DayToNight:
                     __instance.directionalLight.intensity = 
-                        Mathf.Lerp(BaseDayIntensity.Value, nightIntensity, ShapeCurve((currentTime - nightStart) / transitionLength));
+                        Mathf.Lerp(dayIntensity, nightIntensity, ShapeCurve((currentTime - nightStart) / transitionLength));
                     __instance.postProcessSetting.bloomIntensity =
                         Mathf.Lerp(DayBloom.Value, NightBloom.Value, ShapeCurve((currentTime - nightStart) / transitionLength));
                     break;
-                
                 case State.Night:
                     __instance.directionalLight.intensity = nightIntensity;
                     __instance.postProcessSetting.bloomIntensity = NightBloom.Value;
                     break;
-                
                 case State.NightToDay:
                     __instance.directionalLight.intensity = 
-                        Mathf.Lerp(nightIntensity, BaseDayIntensity.Value, currentTime - nightEnd);
+                        Mathf.Lerp(nightIntensity, dayIntensity, currentTime - nightEnd);
                     __instance.postProcessSetting.bloomIntensity = 
                         Mathf.Lerp(NightBloom.Value, DayBloom.Value, currentTime - nightEnd);
                     break;
-                
                 default:
                     Log.LogError($"Unknown state {state}");
                     break;
             }
 
-            LogOutput(__instance);
+            //LogOutput(__instance);
         }
     }
 }
