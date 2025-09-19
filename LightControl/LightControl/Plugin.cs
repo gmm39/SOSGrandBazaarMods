@@ -16,8 +16,8 @@ public class Plugin : BasePlugin
 {
     private static new ManualLogSource Log;
     
-    private static ConfigEntry<float> DayIntensity;
-    private static ConfigEntry<float> NightIntensity;
+    private static ConfigEntry<float> BaseDayIntensity;
+    private static ConfigEntry<float> BaseNightIntensity;
     private static ConfigEntry<float> DayBloom;
     private static ConfigEntry<float> NightBloom;
     private static ConfigEntry<float> NightTimeOffset;
@@ -25,22 +25,26 @@ public class Plugin : BasePlugin
     
     private static ConfigEntry<float> NightTimeOffsetSpring;
     private static ConfigEntry<float> TransitionLengthSpring;
+    private static ConfigEntry<float> NightIntensityOffsetSpring;
     
     private static ConfigEntry<float> NightTimeOffsetSummer;
     private static ConfigEntry<float> TransitionLengthSummer;
+    private static ConfigEntry<float> NightIntensityOffsetSummer;
     
     private static ConfigEntry<float> NightTimeOffsetAutumn;
     private static ConfigEntry<float> TransitionLengthAutumn;
+    private static ConfigEntry<float> NightIntensityOffsetAutumn;
     
     private static ConfigEntry<float> NightTimeOffsetWinter;
     private static ConfigEntry<float> TransitionLengthWinter;
+    private static ConfigEntry<float> NightIntensityOffsetWinter;
 
     public override void Load()
     {
         // Plugin startup logic
-        DayIntensity = Config.Bind("0. Intensity", "DayIntensity", 1.2f,
+        BaseDayIntensity = Config.Bind("0. Intensity", "DayIntensity", 1.2f,
             "Lower is darker, higher is brighter. GameDefault: 1.2");
-        NightIntensity = Config.Bind("0. Intensity", "NightIntensity", 0.75f,
+        BaseNightIntensity = Config.Bind("0. Intensity", "NightIntensity", 0.75f,
             "Lower is darker, higher is brighter. GameDefault: 1.2");
         
         DayBloom = Config.Bind("1. Bloom", "DayBloom", 1.0f,
@@ -55,24 +59,32 @@ public class Plugin : BasePlugin
             "Offset applied to night start time.");
         TransitionLengthSpring = Config.Bind("3. Spring", "TransitionLength", 1.0f,
             "Length of time for the transition between day and night.");
+        NightIntensityOffsetSpring = Config.Bind("3. Spring", "NightIntensityOffset", 0.0f,
+            "Offset applied to base night intensity.");
         
         NightTimeOffsetSummer = Config.Bind("4. Summer", "NightTimeOffset", -0.75f,
             "Offset applied to night start time.");
         TransitionLengthSummer = Config.Bind("4. Summer", "TransitionLength", 1.5f,
             "Length of time for the transition between day and night.");
+        NightIntensityOffsetSummer = Config.Bind("4. Summer", "NightIntensityOffset", 0.0f,
+            "Offset applied to base night intensity.");
         
         NightTimeOffsetAutumn = Config.Bind("5. Autumn", "NightTimeOffset", -0.25f,
             "Offset applied to night start time.");
         TransitionLengthAutumn = Config.Bind("5. Autumn", "TransitionLength", 1.0f,
             "Length of time for the transition between day and night.");
+        NightIntensityOffsetAutumn = Config.Bind("5. Autumn", "NightIntensityOffset", 0.0f,
+            "Offset applied to base night intensity.");
         
         NightTimeOffsetWinter = Config.Bind("6. Winter", "NightTimeOffset", -0.25f,
             "Offset applied to night start time.");
         TransitionLengthWinter = Config.Bind("6. Winter", "TransitionLength", 1.0f,
             "Length of time for the transition between day and night.");
+        NightIntensityOffsetWinter = Config.Bind("6. Winter", "NightIntensityOffset", -0.15f,
+            "Offset applied to base night intensity.");
 
         Log = base.Log;
-        Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
+        Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded! v2");
 
         Harmony.CreateAndPatchAll(typeof(LightPatch));
     }
@@ -114,18 +126,22 @@ public class Plugin : BasePlugin
                 case BokuMonoSeason.Spring:
                     offset = NightTimeOffsetSpring.Value;
                     transitionLength = TransitionLengthSpring.Value;
+                    nightIntensity = NightIntensityOffsetSpring.Value;
                     break;
                 case BokuMonoSeason.Summer:
                     offset = NightTimeOffsetSummer.Value;
                     transitionLength = TransitionLengthSummer.Value;
+                    nightIntensity = NightIntensityOffsetSummer.Value;
                     break;
                 case BokuMonoSeason.Autumn:
                     offset = NightTimeOffsetAutumn.Value;
                     transitionLength = TransitionLengthAutumn.Value;
+                    nightIntensity = NightIntensityOffsetAutumn.Value;
                     break;
                 case BokuMonoSeason.Winter:
                     offset = NightTimeOffsetWinter.Value;
                     transitionLength = TransitionLengthWinter.Value;
+                    nightIntensity = NightIntensityOffsetWinter.Value;
                     break;
                 default:
                     Log.LogError($"Unknown season {season}");
@@ -137,6 +153,12 @@ public class Plugin : BasePlugin
             nightEnd = __instance.SeasonalTimeSetting.nightEnd;
             
             isIndoor = FieldManager.Instance.CurrentFieldMasterData.IsInDoor;
+
+            if (!isIndoor)
+                nightIntensity += BaseNightIntensity.Value;
+            else
+                nightIntensity = Math.Clamp(BaseNightIntensity.Value + IndoorIntensityOffset.Value,
+                    BaseNightIntensity.Value, BaseDayIntensity.Value);
         }
 
         private static void SetState()
@@ -157,13 +179,6 @@ public class Plugin : BasePlugin
             {
                 state = State.NightToDay;
             }
-        }
-
-        private static void CalculateIntensity()
-        {
-            nightIntensity = isIndoor ?
-                Math.Clamp(NightIntensity.Value + IndoorIntensityOffset.Value, NightIntensity.Value, DayIntensity.Value) :
-                NightIntensity.Value;
         }
 
         private static float ShapeCurve(float t)
@@ -191,18 +206,16 @@ public class Plugin : BasePlugin
             SetValues(__instance);
             SetState();
 
-            CalculateIntensity();
-
             switch (state)
             {
                 case State.Day:
-                    __instance.directionalLight.intensity = DayIntensity.Value;
+                    __instance.directionalLight.intensity = BaseDayIntensity.Value;
                     __instance.postProcessSetting.bloomIntensity = DayBloom.Value;
                     break;
                 
                 case State.DayToNight:
                     __instance.directionalLight.intensity = 
-                        Mathf.Lerp(DayIntensity.Value, nightIntensity, ShapeCurve((currentTime - nightStart) / transitionLength));
+                        Mathf.Lerp(BaseDayIntensity.Value, nightIntensity, ShapeCurve((currentTime - nightStart) / transitionLength));
                     __instance.postProcessSetting.bloomIntensity =
                         Mathf.Lerp(DayBloom.Value, NightBloom.Value, ShapeCurve((currentTime - nightStart) / transitionLength));
                     break;
@@ -214,7 +227,7 @@ public class Plugin : BasePlugin
                 
                 case State.NightToDay:
                     __instance.directionalLight.intensity = 
-                        Mathf.Lerp(nightIntensity, DayIntensity.Value, currentTime - nightEnd);
+                        Mathf.Lerp(nightIntensity, BaseDayIntensity.Value, currentTime - nightEnd);
                     __instance.postProcessSetting.bloomIntensity = 
                         Mathf.Lerp(NightBloom.Value, DayBloom.Value, currentTime - nightEnd);
                     break;
