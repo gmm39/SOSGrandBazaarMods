@@ -28,7 +28,7 @@ public class Plugin : BasePlugin
         [HarmonyPrefix]
         private static void Update_Prefix(FadeManager __instance)
         {
-            __instance.fadeParent.localScale = new Vector3(1.5f, 1.5f, 1.0f);
+            __instance.fadeParent.localScale = new Vector3(2f, 1.5f, 1.0f);
         }
     }
 }
