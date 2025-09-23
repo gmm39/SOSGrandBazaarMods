@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using BepInEx;
+using BepInEx.Configuration;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
 using BokuMono;
@@ -12,10 +13,19 @@ namespace FadeFix;
 public class Plugin : BasePlugin
 {
     internal static new ManualLogSource Log;
+    private static ConfigEntry<int> Horizontal;
+    private static ConfigEntry<int> Vertical;
     
     public override void Load()
     {
         // Plugin startup logic
+        Horizontal = Config.Bind("General", "Horizontal", 16, 
+            "Enter the horizontal portion of your aspect ratio." +
+            "\nExample: For 16:9, enter 16.");
+        Vertical = Config.Bind("General", "Vertical", 9, 
+            "Enter the vertical portion of your aspect ratio." +
+            "\nExample: For 16:9, enter 9.");
+            
         Log = base.Log;
         Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
         
@@ -28,7 +38,9 @@ public class Plugin : BasePlugin
         [HarmonyPrefix]
         private static void Update_Prefix(FadeManager __instance)
         {
-            __instance.fadeParent.localScale = new Vector3(2f, 1.5f, 1.0f);
+            var horizontal = Horizontal.Value / 16f + 0.05f;
+            var vertical = Vertical.Value / 9f + 0.05f;
+            __instance.fadeParent.localScale = new Vector3(horizontal, vertical, 1.0f);
         }
     }
 }
