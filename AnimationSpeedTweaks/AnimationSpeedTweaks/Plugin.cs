@@ -59,6 +59,12 @@ public class Plugin : BasePlugin
     private static ConfigEntry<float> AnimationPutItem;
     private static ConfigEntry<float> AnimationTired;
     
+    // Dive Tweaks
+    private static ConfigEntry<float> DiveFadeOutTime;
+    private static ConfigEntry<float> DiveFadeWaitingTime;
+    private static ConfigEntry<float> DiveBeforeFadeInWaitingTime;
+    private static ConfigEntry<float> DiveFadeInTime;
+    
     public override void Load()
     {
         // Plugin startup logic
@@ -74,91 +80,101 @@ public class Plugin : BasePlugin
     {
         // Animation Speed Tweaks
         AnimationPutinItem = Config.Bind("AnimationSpeedTweaks", "Animation_Putin_Item", 10.0f,
-            "");
+            ConfigDescription.Empty);
         AnimationPickupItem = Config.Bind("AnimationSpeedTweaks", "Animation_Pickup_Item", 8.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationWateringPotMotionCancel = Config.Bind("AnimationSpeedTweaks", "Animation_Watering_Pot_Motion_Cancel", 10.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationPlantFlower = Config.Bind("AnimationSpeedTweaks", "Animation_Plant_Flower", 10.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationPlantFlowerMotionCancel = Config.Bind("AnimationSpeedTweaks", "Animation_Plant_Flower_Motion_Cancel", 4.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationFertillze = Config.Bind("AnimationSpeedTweaks", "Animation_Fertillze", 22.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationFertillzeMotionCancel = Config.Bind("AnimationSpeedTweaks", "Animation_Fertillze_Motion_Cancel", 3.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationFertillzeEnableItem = Config.Bind("AnimationSpeedTweaks", "Animation_Fertillze_Enable_Item", 6.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationSickle = Config.Bind("AnimationSpeedTweaks", "Animation_Sickle", 3.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationSickleMotionCancel = Config.Bind("AnimationSpeedTweaks", "Animation_Sickle_Motion_Cancel", 3.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationJumpSickle = Config.Bind("AnimationSpeedTweaks", "Animation_Jump_Sickle", 4.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationDisplayDelay = Config.Bind("AnimationSpeedTweaks", "Animation_Display_Delay", 0.5f, 
-            "");
+            ConfigDescription.Empty);
         AnimationHappy = Config.Bind("AnimationSpeedTweaks", "Animation_Happy", 2.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationBell = Config.Bind("AnimationSpeedTweaks", "Animation_Bell", 12.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationAnimalLiftUp = Config.Bind("AnimationSpeedTweaks", "Animation_Animal_Lift_Up", 10.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationAnimalTakeDown = Config.Bind("AnimationSpeedTweaks", "Animation_Animal_Take_Down", 10.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationHammer = Config.Bind("AnimationSpeedTweaks", "Animation_Hammer", 3.5f, 
-            "");
+            ConfigDescription.Empty);
         AnimationHammerMotionCancel = Config.Bind("AnimationSpeedTweaks", "Animation_Hammer_Motion_Cancel", 2.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationAx = Config.Bind("AnimationSpeedTweaks", "Animation_Ax", 8.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationAxMotionCancel = Config.Bind("AnimationSpeedTweaks", "Animation_Ax_Motion_Cancel", 2.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationScoop = Config.Bind("AnimationSpeedTweaks", "Animation_Scoop", 30.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationScoopMotionCancel = Config.Bind("AnimationSpeedTweaks", "Animation_Scoop_Motion_Cancel", 4.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationHorseSaddleOff = Config.Bind("AnimationSpeedTweaks", "Animation_Horse_Saddle_Off", 20.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationHorseCollect = Config.Bind("AnimationSpeedTweaks", "Animation_Horse_Collect", 22.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationLeverDownBreak = Config.Bind("AnimationSpeedTweaks", "Animation_Lever_Down_Break", 95.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationEat = Config.Bind("AnimationSpeedTweaks", "Animation_Eat", 1.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationEatEndStart = Config.Bind("AnimationSpeedTweaks", "Animation_Eat_End_Start", 25.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationShowItemEffect = Config.Bind("AnimationSpeedTweaks", "Animation_Show_Item_Effect", 10.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationChangeItemDisableTool = Config.Bind("AnimationSpeedTweaks", "Animation_Change_Item_Disable_Tool", 16.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationChangeItem = Config.Bind("AnimationSpeedTweaks", "Animation_Change_Item", 1.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationHarvstChangeItem = Config.Bind("AnimationSpeedTweaks", "Animation_Harvst_Change_Item", 14.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationHarvstTool = Config.Bind("AnimationSpeedTweaks", "Animation_Harvst_Tool", 8.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationTreeHarvstAction = Config.Bind("AnimationSpeedTweaks", "Animation_Tree_Harvst_Action", 3.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationTreeHarvst = Config.Bind("AnimationSpeedTweaks", "Animation_Tree_Harvst", 10.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationJumpHarvst = Config.Bind("AnimationSpeedTweaks", "Animation_Jump_Harvst", 1.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationTakeoutItemEnd = Config.Bind("AnimationSpeedTweaks", "Animation_Takeout_Item_End", 12.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationMushroomTakeoutItem = Config.Bind("AnimationSpeedTweaks", "Animation_Mushroom_Takeout_Item", 21.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationBasketPickup = Config.Bind("AnimationSpeedTweaks", "Animation_Basket_Pickup", 0.6f, 
-            "");
+            ConfigDescription.Empty);
         AnimationBasketPickupEnd = Config.Bind("AnimationSpeedTweaks", "Animation_Basket_Pickup_End", 9.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationSiloIn = Config.Bind("AnimationSpeedTweaks", "Animation_Silo_In", 11.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationSiloOut = Config.Bind("AnimationSpeedTweaks", "Animation_Silo_Out", 38.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationPutItem = Config.Bind("AnimationSpeedTweaks", "Animation_Put_Item", 10.0f, 
-            "");
+            ConfigDescription.Empty);
         AnimationTired = Config.Bind("AnimationSpeedTweaks", "Animation_Tired", 30.0f, 
-            "");
+            ConfigDescription.Empty);
+        
+        // Dive Tweaks
+        DiveFadeOutTime = Config.Bind("DiveSettings", "Dive_Fade_Out_Time", 0.5f, 
+            "Enter fall in water fade out time.");
+        DiveFadeWaitingTime = Config.Bind("DiveSettings",  "Dive_Fade_Waiting_Time", 0.5f, 
+            "Enter fall in water fade waiting time.");
+        DiveBeforeFadeInWaitingTime = Config.Bind("DiveSettings",  "Dive_Before_Fade_In_Waiting_Time", 0.2f, 
+            "Enter fall in water fade waiting time.");
+        DiveFadeInTime = Config.Bind("DiveSettings",  "Dive_Fade_In_Time", 0.5f, 
+            "Enter fall in water fade in.");
     }
     
     private static class AnimationPatch
@@ -213,6 +229,12 @@ public class Plugin : BasePlugin
             playSetting.AnimationSiloOut = AnimationSiloOut.Value;
             playSetting.AnimationPutItem = AnimationPutItem.Value;
             playSetting.AnimationTired = AnimationTired.Value;
+            
+            // Dive Tweaks
+            playSetting.DiveFadeOutTime = DiveFadeOutTime.Value;
+            playSetting.DiveFadeWaitingTime = DiveFadeWaitingTime.Value;
+            playSetting.DiveBeforeFadeInWaitingTime = DiveBeforeFadeInWaitingTime.Value;
+            playSetting.DiveFadeInTime = DiveFadeInTime.Value;
         } 
     }
 }
