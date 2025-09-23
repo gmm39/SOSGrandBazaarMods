@@ -31,11 +31,6 @@ public class Plugin : BasePlugin
     private static ConfigEntry<int> CropTyphoonDam;
     
     // Movement Tweaks
-    private static ConfigEntry<float> PlayerWalkSpeed;
-    private static ConfigEntry<float> PlayerRunSpeed;
-    private static ConfigEntry<float> PlayerInWeedSpeed;
-    private static ConfigEntry<float> PlayerLimitMoveSpeed;
-    private static ConfigEntry<float> PlayerBazaarLimitMoveSpeed;
     private static ConfigEntry<float> HorseMaxSpeedBoost;
     private static ConfigEntry<float> HorseAccelerationBoost;
     private static ConfigEntry<float> HorseTurnSpeedBoost;
@@ -48,12 +43,6 @@ public class Plugin : BasePlugin
     private static ConfigEntry<float> GreetReactionRangeMin;
     private static ConfigEntry<float> GreetReactionRangeMax;
     private static ConfigEntry<bool>  GreetQuickReactions;
-    
-    // Dive Tweaks
-    private static ConfigEntry<float> DiveFadeOutTime;
-    private static ConfigEntry<float> DiveFadeWaitingTime;
-    private static ConfigEntry<float> DiveBeforeFadeInWaitingTime;
-    private static ConfigEntry<float> DiveFadeInTime;
     
     public override void Load()
     {
@@ -91,16 +80,6 @@ public class Plugin : BasePlugin
             "Enter damage sustained from typhoons.");
         
         // Movement Tweaks
-        PlayerWalkSpeed = Config.Bind("MovementSettings", "Walk_Speed", 1.0f,
-            "Enter Player walk speed.");
-        PlayerRunSpeed = Config.Bind("MovementSettings", "Run_Speed", 5.0f,
-            "Enter Player run speed.");
-        PlayerInWeedSpeed = Config.Bind("MovementSettings", "In_Weed_Speed", 3.0f,
-            "Enter Player speed in weeds.");
-        PlayerLimitMoveSpeed = Config.Bind("MovementSettings", "Limit_Move_Speed", 2.3f,
-            "Enter Player speed limit during times of limited movement.");
-        PlayerBazaarLimitMoveSpeed = Config.Bind("MovementSettings", "Bazaar_Limit_Move_Speed", 4.0f,
-            "Enter Player speed limit during the bazaar.");
         HorseMaxSpeedBoost = Config.Bind("MovementSettings", "Horse_Max_Speed_Boost", 0.0f,
             "Enter amount to boost max horse speed. Base horse max speed = 7.0");
         HorseAccelerationBoost = Config.Bind("MovementSettings", "Horse_Acceleration_Boost", 0.0f,
@@ -123,16 +102,6 @@ public class Plugin : BasePlugin
             "Enter the maximum reaction range. Typically >= Greeting_Range.");
         GreetQuickReactions = Config.Bind("GreetingSettings", "Greeting_Quick_Reactions", false,
             "Enable for instant reactions.");
-        
-        // Dive Tweaks
-        DiveFadeOutTime = Config.Bind("DiveSettings", "Dive_Fade_Out_Time", 0.5f, 
-            "Enter dive fade out time.");
-        DiveFadeWaitingTime = Config.Bind("DiveSettings",  "Dive_Fade_Waiting_Time", 0.5f, 
-            "Enter dive fade waiting time.");
-        DiveBeforeFadeInWaitingTime = Config.Bind("DiveSettings",  "Dive_Before_Fade_In_Waiting_Time", 0.2f, 
-            "Enter dive fade waiting time.");
-        DiveFadeInTime = Config.Bind("DiveSettings",  "Dive_Fade_In_Time", 0.5f, 
-            "Enter dive fade in.");
     }
     
     private static string PropertyList(object obj)
@@ -175,12 +144,6 @@ public class Plugin : BasePlugin
             farmSetting.TyphoonDamageRate = CropTyphoonDam.Value;
             
             // Movement Tweaks
-            playSetting.PlayerWalkSpeed = PlayerWalkSpeed.Value;
-            playSetting.PlayerRunSpeed = PlayerRunSpeed.Value;
-            playSetting.PlayerInWeedSpeed = PlayerInWeedSpeed.Value;
-            playSetting.PlayerLimitMoveSpeed = PlayerLimitMoveSpeed.Value;
-            playSetting.PlayerBazaarLimitMoveSpeed = PlayerBazaarLimitMoveSpeed.Value;
-
             foreach (var speed in hrSpdSetting)
             {
                 speed.MaxSpeed += HorseMaxSpeedBoost.Value;
@@ -221,12 +184,6 @@ public class Plugin : BasePlugin
                 playSetting.GreetingReactionDatas[2].DelayMin = 1.5f;
                 playSetting.GreetingReactionDatas[2].DelayMax = 1.8f;
             }
-            
-            // Dive Tweaks
-            playSetting.DiveFadeOutTime = DiveFadeOutTime.Value;
-            playSetting.DiveFadeWaitingTime = DiveFadeWaitingTime.Value;
-            playSetting.DiveBeforeFadeInWaitingTime = DiveBeforeFadeInWaitingTime.Value;
-            playSetting.DiveFadeInTime = DiveFadeInTime.Value;
             
             
         } 
