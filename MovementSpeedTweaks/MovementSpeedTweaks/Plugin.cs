@@ -22,7 +22,7 @@ public class Plugin : BasePlugin
     // Glide Tweaks
     private static ConfigEntry<bool> EnableGlideTweaks;
     private static ConfigEntry<bool> RemoveAgainstWind;
-    private static ConfigEntry<float> GlideMoveSpeed;
+    private static ConfigEntry<float> GlideMoveSpeedBoost;
     
     public override void Load()
     {
@@ -41,10 +41,9 @@ public class Plugin : BasePlugin
         EnableGlideTweaks = Config.Bind("GlideSettings", "Enable_Glide_Tweaks", false,
             "Enable changes to the glide settings. Must be 'true' for the following glide settings to be applied");
         RemoveAgainstWind = Config.Bind("GlideSettings", "Remove_Against_Wind_Penalty", false,
-            "Remove the penalty for gliding into the wind. " +
-            "Also removes wind boost. Compensate by changing glide speed below.");
-        GlideMoveSpeed = Config.Bind("GlideSettings", "Glide_Move_Speed", 4.5f,
-            "Enter glide speed for all wind levels.");
+            "Remove the penalty for gliding into the wind.");
+        GlideMoveSpeedBoost = Config.Bind("GlideSettings", "Glide_Move_Speed_Boost", 0f,
+            "Boosts glide speed by given amount.");
         
         Log = base.Log;
         Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
@@ -71,10 +70,18 @@ public class Plugin : BasePlugin
             
             foreach (var move in playSetting.MoveDatas)
             {
-                move.GliderMoveSpeed = GlideMoveSpeed.Value;
-                move.GliderMoveWaitSpeed = GlideMoveSpeed.Value / 2;
-                if(RemoveAgainstWind.Value) move.GliderWindAddVal = 0.0f;
+                if (RemoveAgainstWind.Value)
+                {
+                    move.GliderMoveSpeed += move.GliderWindAddVal + GlideMoveSpeedBoost.Value;
+                    move.GliderWindAddVal = 0.0f;
+                }
+                else
+                {
+                    move.GliderMoveSpeed += GlideMoveSpeedBoost.Value;
+                }
+                
+                move.GliderMoveWaitSpeed = move.GliderMoveSpeed / 2;
             }
-        } 
+        }
     }
 }
