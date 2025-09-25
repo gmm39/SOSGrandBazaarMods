@@ -2,9 +2,11 @@
 using BepInEx;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
+using BokuMono;
 using BokuMono.Data;
 using BokuMono.Sound;
 using HarmonyLib;
+using Il2CppSystem;
 
 namespace ContinuedMusic;
 
@@ -25,17 +27,22 @@ public class Plugin : BasePlugin
     private static class MusicPatch
     {
         private static HashSet<uint> ignoreIds = [20301, 20302, 20101];
+        private static bool slept = true;
         
         [HarmonyPatch(typeof(SoundBgmController), "PlayBgm", typeof(BgmMasterData), typeof(float), typeof(float), typeof(float))]
         [HarmonyPrefix]
         private static bool Prefix(SoundBgmController __instance, BgmMasterData bgmData)
         {
-            if (__instance.CurrentBgmId == 60101)
-            {
-                return true;
-            }
-
-            return !ignoreIds.Contains(bgmData.Id);
+            if (!slept) return !ignoreIds.Contains(bgmData.Id);
+            if(__instance.CurrentBgmId == 20101) slept = false;
+            return true;
+        }
+        
+        [HarmonyPatch(typeof(GameController), "OpenAutoSaveDialog")]
+        [HarmonyPrefix]
+        private static void Prefix()
+        {
+            slept = true;
         }
     }
 }
