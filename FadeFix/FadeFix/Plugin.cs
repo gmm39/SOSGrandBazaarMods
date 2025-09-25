@@ -38,8 +38,8 @@ public class Plugin : BasePlugin
         [HarmonyPrefix]
         private static void Update_Prefix(FadeManager __instance)
         {
-            var horizontal = Horizontal.Value / 16f + 0.05f;
-            var vertical = Vertical.Value / 9f + 0.05f;
+            var horizontal = Horizontal.Value / 16f + 0.02f;
+            var vertical = Vertical.Value / 9f + 0.02f;
             __instance.fadeParent.localScale = new Vector3(horizontal, vertical, 1.0f);
         }
     }
