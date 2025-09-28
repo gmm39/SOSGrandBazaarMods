@@ -174,6 +174,7 @@ public class Plugin : BasePlugin
         
         private static void UpdateBerryMessage()
         {
+            if (LanguageManager.Instance.CurrentLanguage != Language.en) return;
             if (!EnableMovementFeature.Value && !EnableGliderFeature.Value && !EnableWakeTimeFeature.Value) return;
             
             var berryText = LanguageManager.Instance.GetLocalizeTextData(LocalizeTextTableType.TalkText_Object, 59927011);
