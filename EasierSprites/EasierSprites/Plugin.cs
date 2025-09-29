@@ -18,10 +18,13 @@ public class Plugin : BasePlugin
     {
         // Plugin startup logic
         ExpSetting = Config.Bind("General", "Exp_Setting", "easy",
-            "Acceptable Values: easy, easier, easiest" +
+            "Acceptable Values: easy, easier, easiest, hard, harder, hardest" +
             "\nEasy: 75% total exp of original" +
             "\nEasier: 50% total exp of original" +
-            "\nEasiest: 33% total exp of original");
+            "\nEasiest: 33% total exp of original" +
+            "\nHard: 125% total exp of original" +
+            "\nHarder: 150% total exp of original" +
+            "\nHardest: 166% total exp of original");
 
         Log = base.Log;
         Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
@@ -31,9 +34,9 @@ public class Plugin : BasePlugin
 
     private static class SpritePatch
     {
-        private static float Easy = 0.00605f;
-        private static float Easier = 0.0121f;
-        private static float Easiest = 0.01613f;
+        private static float Base = 0.00605f;
+        private static float Baser = 0.0121f;
+        private static float Basest = 0.01613f;
         
         [HarmonyPatch(typeof(UITitleMainPage), "PlayTitleLogoAnimation")]
         [HarmonyPostfix]
@@ -45,13 +48,22 @@ public class Plugin : BasePlugin
             switch (ExpSetting.Value.ToLower())
             {
                 case "easy":
-                    multiplier = Easy;
+                    multiplier = Base;
                     break;
                 case "easier":
-                    multiplier = Easier;
+                    multiplier = Baser;
                     break;
                 case "easiest":
-                    multiplier = Easiest;
+                    multiplier = Basest;
+                    break;
+                case "hard":
+                    multiplier = -Base;
+                    break;
+                case "harder":
+                    multiplier = -Baser;
+                    break;
+                case "hardest":
+                    multiplier = -Basest;
                     break;
                 default:
                     Log.LogError("Incorrect config value for Exp_Setting");
