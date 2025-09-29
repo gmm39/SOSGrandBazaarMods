@@ -28,9 +28,9 @@ public class Plugin : BasePlugin
 
     private static class DateManagerPatch
     {
-        [HarmonyPatch(typeof(DateManager), "Update")]
-        [HarmonyPrefix]
-        private static void Update_Prefix(DateManager __instance)
+        [HarmonyPatch(typeof(DateManager), "OnStartGame")]
+        [HarmonyPostfix]
+        private static void Update_Postfix(DateManager __instance)
         {
             __instance.TimeScale = TimeScaleEntry.Value;
         }

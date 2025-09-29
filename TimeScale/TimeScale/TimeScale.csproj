@@ -24,5 +24,14 @@
       <Reference Include="Assembly-CSharp">
         <HintPath>..\..\_References\Assembly-CSharp.dll</HintPath>
       </Reference>
+      <Reference Include="BokuMono.Utility">
+        <HintPath>..\..\_References\BokuMono.Utility.dll</HintPath>
+      </Reference>
+      <Reference Include="Il2Cppmscorlib">
+        <HintPath>..\..\_References\Il2Cppmscorlib.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.CoreModule">
+        <HintPath>..\..\_References\UnityEngine.CoreModule.dll</HintPath>
+      </Reference>
     </ItemGroup>
 </Project>
