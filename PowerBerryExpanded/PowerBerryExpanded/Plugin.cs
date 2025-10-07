@@ -305,6 +305,8 @@ public class Plugin : BasePlugin
             Log.LogInfo("MaxHP:".PadRight(16) + playSetting.PlayerMaxHP.ToString().PadLeft(6));
             Log.LogInfo("CurrentMaxHP:".PadRight(16) + ExternalData.Instance.UserInfo.PlayerMaxHP.ToString().PadLeft(6));
             Log.LogInfo("StartHP:".PadRight(16) + playSetting.PlayerHP.ToString().PadLeft(6));
+            Log.LogInfo("CurrentWalkSpeed:".PadRight(16) + playSetting.PlayerWalkSpeed.ToString().PadLeft(6));
+            Log.LogInfo("CurrentRunSpeed:".PadRight(16) + playSetting.PlayerRunSpeed.ToString().PadLeft(6));
             Log.LogInfo("walkIncre:".PadRight(16) + walkIncre.ToString().PadLeft(6));
             Log.LogInfo("runIncre:".PadRight(16) + runIncre.ToString().PadLeft(6));
             Log.LogInfo("inWeedIncre:".PadRight(16) + inWeedIncre.ToString().PadLeft(6));
