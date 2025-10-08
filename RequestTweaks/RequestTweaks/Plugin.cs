@@ -37,7 +37,7 @@ public class Plugin : BasePlugin
         RequiredItemQualityBoost = Config.Bind("-----02 ITEM REQUIREMENT-----", "Required_Item_Quality_Boost", 0,
             "Change the quality of the required items by the given amount. Every 1 added is half a star increased." +
             "\nPositive numbers increase the quality while negative decreases it.");
-        RequiredItemAmountMulti = Config.Bind("-----02 REQUIREMENT-----", "Required_Item_Amount_Multiplier", 1.0f,
+        RequiredItemAmountMulti = Config.Bind("-----02 ITEM REQUIREMENT-----", "Required_Item_Amount_Multiplier", 1.0f,
             "Multiply the amount of required items by the given amount.");
         
         ActionMissionAmountMulti = Config.Bind("-----03 COUNT REQUIREMENT-----", "Action_Mission_Amount_Multiplier", 1.0f,
