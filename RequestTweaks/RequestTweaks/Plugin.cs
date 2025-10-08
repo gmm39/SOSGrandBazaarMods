@@ -81,7 +81,7 @@ public class Plugin : BasePlugin
                         {
                             if (mission.RequiredItemStack[i] == 0) break;
                             mission.RequiredItemStack[i] = Math.Clamp((int)Math.Round(mission.RequiredItemStack[i] * RequiredItemAmountMulti.Value), 0, int.MaxValue);
-                            Log.LogInfo($"ItemStack: {mission.RequiredItemStack[i]}");
+                            
                             if (mission.RequiredItemQuality[i] < 1) continue;
                             mission.RequiredItemQuality[i] = Math.Clamp(mission.RequiredItemQuality[i] + RequiredItemQualityBoost.Value, 1, 14);
                         }
