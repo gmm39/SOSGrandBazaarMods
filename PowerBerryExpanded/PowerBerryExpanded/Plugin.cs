@@ -19,6 +19,7 @@ public class Plugin : BasePlugin
     
     private static ConfigEntry<bool> EnableMovementFeature;
     private static ConfigEntry<bool> EnableGliderFeature;
+    private static ConfigEntry<bool> EnableJumpFeature;
     private static ConfigEntry<bool> EnableWakeTimeFeature;
     
     private static ConfigEntry<int> BerriesToMax;
@@ -29,6 +30,10 @@ public class Plugin : BasePlugin
     private static ConfigEntry<float> MaxInWeedSpeed;
     private static ConfigEntry<float> MaxLimitedSpeed;
     private static ConfigEntry<float> MaxBazaarSpeed;
+    
+    private static ConfigEntry<float> JumpVerticalVelocityBoost;
+    private static ConfigEntry<float> JumpHeightBoost;
+    private static ConfigEntry<float> JumpRunSpeedBoost;
     
     private static ConfigEntry<string> AgainstWind;
     private static ConfigEntry<float> MaxGliderSpeedBoost;
@@ -42,6 +47,8 @@ public class Plugin : BasePlugin
             "Enable features in 02 MOVEMENT.");
         EnableGliderFeature = Config.Bind("-----00 FEATURE SELECT-----", "Enable_Glider_Feature", true,
             "Enable features in 03 GLIDER.");
+        EnableJumpFeature = Config.Bind("-----00 FEATURE SELECT-----", "Enable_Jump_Feature", true,
+            "Enable features in 04 JUMP.");
         EnableWakeTimeFeature = Config.Bind("-----00 FEATURE SELECT-----", "Enable_Wake_Time_Feature", false,
             "Enable wake time feature." +
             "\nFor every 25% of max berries eaten, wake time for late bedtimes are made slightly earlier." +
@@ -77,6 +84,13 @@ public class Plugin : BasePlugin
         MaxGliderSpeedBoost = Config.Bind("-----03 GLIDER-----", "Max_Glider_Speed_Boost", 1.5f,
             "Boosts glider speed by given amount at max improvement.");
         
+        JumpVerticalVelocityBoost = Config.Bind("-----04 JUMP-----", "Vertical_Velocity_Boost", 0.75f,
+            "Boosts jump velocity by given amount at max improvement.");
+        JumpHeightBoost = Config.Bind("-----04 JUMP-----", "Jump_Height_Boost", 0.66f,
+            "Boosts jump height by given amount at max improvement.");
+        JumpRunSpeedBoost = Config.Bind("-----04 JUMP-----", "Jump_Move_Speed_Boost", 1.0f,
+            "Boosts movement speed while jumping by given amount at max improvement.");
+        
         EnableDebug = Config.Bind("-----99 DEBUG-----", "Enable_Debug_Logging", false,
             "Enable debug logging.");
 
@@ -110,6 +124,16 @@ public class Plugin : BasePlugin
         private static List<float> baseWindSpeeds;
         private static List<float> progressiveWindSpeeds;
         
+        // Jump
+        private static float baseFirstJumpHeight;
+        private static float baseSecondJumpHeight;
+        private static float baseFirstMaxJumpHight;
+        private static float baseSecondMaxJumpHight;
+        private static float baseJumpRunSpeed;
+        private static float velocityIncre;
+        private static float heightIncre;
+        private static float jumpSpeedIncre;
+        
         // Sleep
         private static List<int> sleepImproveLevels;
         
@@ -136,6 +160,16 @@ public class Plugin : BasePlugin
             baseWindSpeeds = [0.0f, 2.0f, 4.0f, 4.5f];
             progressiveWindSpeeds = baseWindSpeeds.Select(x => x / BerriesToMax.Value).ToList();
             
+            // Jump
+            baseFirstJumpHeight = 4.5f;
+            baseSecondJumpHeight = 5.0f;
+            baseFirstMaxJumpHight = 1.0f;
+            baseSecondMaxJumpHight = 1.27f;
+            baseJumpRunSpeed = 6.2f;
+            velocityIncre = JumpVerticalVelocityBoost.Value / BerriesToMax.Value;
+            heightIncre = JumpHeightBoost.Value / BerriesToMax.Value;
+            jumpSpeedIncre = JumpRunSpeedBoost.Value / BerriesToMax.Value;
+            
             // Sleep
             sleepImproveLevels = [(int)(BerriesToMax.Value * 0.25), (int)(BerriesToMax.Value * 0.5), (int)(BerriesToMax.Value * 0.75)];
         }
@@ -150,6 +184,7 @@ public class Plugin : BasePlugin
             
             if(EnableMovementFeature.Value) MovementIncrease();
             if(EnableGliderFeature.Value) GliderMovementIncrease();
+            if(EnableJumpFeature.Value) JumpIncrease();
             if(EnableWakeTimeFeature.Value) WakeTimeChange();
             if(EnableDebug.Value) Output();
         }
@@ -162,6 +197,7 @@ public class Plugin : BasePlugin
             
             if(EnableMovementFeature.Value) MovementIncrease();
             if(EnableGliderFeature.Value) GliderMovementIncrease();
+            if(EnableJumpFeature.Value) JumpIncrease();
             if(EnableWakeTimeFeature.Value) WakeTimeChange();
             if(EnableDebug.Value) Output();
         }
@@ -222,6 +258,15 @@ public class Plugin : BasePlugin
             playSetting.PlayerInWeedSpeed = baseInWeedSpeed + inWeedIncre * currentPowerBerries;
             playSetting.PlayerLimitMoveSpeed = baseLimitedSpeed + limitedIncre * currentPowerBerries;
             playSetting.PlayerBazaarLimitMoveSpeed =  baseBazaarSpeed + bazaarIncre * currentPowerBerries;
+        }
+
+        private static void JumpIncrease()
+        {
+            playSetting.FirstJumpHight = baseFirstJumpHeight + velocityIncre * currentPowerBerries;
+            playSetting.SecondJumpHight = baseSecondJumpHeight + velocityIncre * currentPowerBerries;
+            playSetting.FirstMaxJumpHight = baseFirstMaxJumpHight + heightIncre * currentPowerBerries;
+            playSetting.SecondMaxJumpHight = baseSecondMaxJumpHight + heightIncre * currentPowerBerries;
+            playSetting.JumpRunSpeed = baseJumpRunSpeed + jumpSpeedIncre * currentPowerBerries;
         }
 
         private static void GliderMovementIncrease()
@@ -312,6 +357,14 @@ public class Plugin : BasePlugin
             Log.LogInfo("inWeedIncre:".PadRight(16) + inWeedIncre.ToString().PadLeft(6));
             Log.LogInfo("limitedIncre:".PadRight(16) + limitedIncre.ToString().PadLeft(6));
             Log.LogInfo("bazaarIncre:".PadRight(16) + bazaarIncre.ToString().PadLeft(6));
+            Log.LogInfo("1stJumpVelocity:".PadRight(16) + playSetting.FirstJumpHight.ToString().PadLeft(6));
+            Log.LogInfo("2ndJumpVelocity:".PadRight(16) + playSetting.SecondJumpHight.ToString().PadLeft(6));
+            Log.LogInfo("1stJumpHeight:".PadRight(16) + playSetting.FirstMaxJumpHight.ToString().PadLeft(6));
+            Log.LogInfo("2ndJumpHeight:".PadRight(16) + playSetting.SecondMaxJumpHight.ToString().PadLeft(6));
+            Log.LogInfo("JumpRunSpeed:".PadRight(16) + playSetting.JumpRunSpeed.ToString().PadLeft(6));
+            Log.LogInfo("velocityIncre:".PadRight(16) + velocityIncre.ToString().PadLeft(6));
+            Log.LogInfo("heightIncre:".PadRight(16) + heightIncre.ToString().PadLeft(6));
+            Log.LogInfo("jumpSpeedIncre:".PadRight(16) + jumpSpeedIncre.ToString().PadLeft(6));
             Log.LogInfo("PowerBerryValue:".PadRight(16) + playSetting.MisteriousWaterValue.ToString().PadLeft(6));
             Log.LogInfo("BerriesToMax:".PadRight(16) + BerriesToMax.Value.ToString().PadLeft(6));
             
