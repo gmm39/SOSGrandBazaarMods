@@ -19,6 +19,13 @@ public class Plugin : BasePlugin
     private static ConfigEntry<float> PlayerLimitMoveSpeed;
     private static ConfigEntry<float> PlayerBazaarLimitMoveSpeed;
     
+    // Jump Tweaks
+    private static ConfigEntry<float> FirstJumpVerticalVelocity;
+    private static ConfigEntry<float> SecondJumpVerticalVelocity;
+    private static ConfigEntry<float> FirstJumpMaxHeight;
+    private static ConfigEntry<float> SecondJumpMaxHeight;
+    private static ConfigEntry<float> JumpRunSpeed;
+    
     // Glide Tweaks
     private static ConfigEntry<bool> EnableGlideTweaks;
     private static ConfigEntry<bool> RemoveAgainstWind;
@@ -27,31 +34,43 @@ public class Plugin : BasePlugin
     public override void Load()
     {
         // Movement Tweaks
-        PlayerWalkSpeed = Config.Bind("MovementSettings", "Walk_Speed", 1.0f,
+        PlayerWalkSpeed = Config.Bind("-----01 MOVEMENT SETTINGS-----", "Walk_Speed", 1.0f,
             "Enter Player walk speed.");
-        PlayerRunSpeed = Config.Bind("MovementSettings", "Run_Speed", 5.0f,
+        PlayerRunSpeed = Config.Bind("-----01 MOVEMENT SETTINGS-----", "Run_Speed", 5.0f,
             "Enter Player run speed.");
-        PlayerInWeedSpeed = Config.Bind("MovementSettings", "In_Weed_Speed", 3.0f,
+        PlayerInWeedSpeed = Config.Bind("-----01 MOVEMENT SETTINGS-----", "In_Weed_Speed", 3.0f,
             "Enter Player speed in weeds.");
-        PlayerLimitMoveSpeed = Config.Bind("MovementSettings", "Limit_Move_Speed", 2.3f,
+        PlayerLimitMoveSpeed = Config.Bind("-----01 MOVEMENT SETTINGS-----", "Limit_Move_Speed", 2.3f,
             "Enter Player speed limit during times of limited movement.");
-        PlayerBazaarLimitMoveSpeed = Config.Bind("MovementSettings", "Bazaar_Limit_Move_Speed", 4.0f,
+        PlayerBazaarLimitMoveSpeed = Config.Bind("-----01 MOVEMENT SETTINGS-----", "Bazaar_Limit_Move_Speed", 4.0f,
             "Enter Player speed limit during the bazaar.");
         
-        EnableGlideTweaks = Config.Bind("GlideSettings", "Enable_Glide_Tweaks", false,
-            "Enable changes to the glide settings. Must be 'true' for the following glide settings to be applied");
-        RemoveAgainstWind = Config.Bind("GlideSettings", "Remove_Against_Wind_Penalty", false,
-            "Remove the penalty for gliding into the wind.");
-        GlideMoveSpeedBoost = Config.Bind("GlideSettings", "Glide_Move_Speed_Boost", 0f,
-            "Boosts glide speed by given amount.");
+        // Jump Tweaks
+        FirstJumpVerticalVelocity = Config.Bind("-----02 JUMP SETTINGS-----", "First_Jump_Vertical_Velocity", 4.5f,
+            "Enter vertical jump velocity for first jump.");
+        SecondJumpVerticalVelocity = Config.Bind("-----02 JUMP SETTINGS-----", "Second_Jump_Vertical_Velocity", 5.0f,
+            "Enter vertical jump velocity for second (double) jump.");
+        FirstJumpMaxHeight = Config.Bind("-----02 JUMP SETTINGS-----", "First_Jump_Max_Height", 1.0f,
+            "Enter max jump height for first jump.");
+        SecondJumpMaxHeight = Config.Bind("-----02 JUMP SETTINGS-----", "Second_Jump_Max_Height", 1.27f,
+            "Enter max jump height for second (double) jump.");
+        JumpRunSpeed = Config.Bind("-----02 JUMP SETTINGS-----", "Jump_Run_Speed", 6.2f,
+            "Enter movement speed while jumping.");
         
+        // Glide Tweaks
+        EnableGlideTweaks = Config.Bind("-----03 GLIDE SETTINGS-----", "Enable_Glide_Tweaks", false,
+            "Enable changes to the glide settings. Must be 'true' for the following glide settings to be applied");
+        RemoveAgainstWind = Config.Bind("-----03 GLIDE SETTINGS-----", "Remove_Against_Wind_Penalty", false,
+            "Remove the penalty for gliding into the wind.");
+        GlideMoveSpeedBoost = Config.Bind("-----03 GLIDE SETTINGS-----", "Glide_Move_Speed_Boost", 0f,
+            "Boosts glide speed by given amount.");
         Log = base.Log;
         Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
-        Harmony.CreateAndPatchAll(typeof(TestPatch1));
+        Harmony.CreateAndPatchAll(typeof(MovementPatch));
     }
     
-    private static class TestPatch1
+    private static class MovementPatch
     {
         [HarmonyPatch(typeof(UITitleMainPage), "PlayTitleLogoAnimation")]
         [HarmonyPostfix]
@@ -66,6 +85,14 @@ public class Plugin : BasePlugin
             playSetting.PlayerLimitMoveSpeed = PlayerLimitMoveSpeed.Value;
             playSetting.PlayerBazaarLimitMoveSpeed = PlayerBazaarLimitMoveSpeed.Value;
 
+            // Jump Tweaks
+            playSetting.FirstJumpHight = FirstJumpVerticalVelocity.Value;
+            playSetting.SecondJumpHight = SecondJumpVerticalVelocity.Value;
+            playSetting.FirstMaxJumpHight = FirstJumpMaxHeight.Value;
+            playSetting.SecondMaxJumpHight = SecondJumpMaxHeight.Value;
+            playSetting.JumpRunSpeed = JumpRunSpeed.Value;
+            
+            // Glide Tweaks
             if (!EnableGlideTweaks.Value) return;
             
             foreach (var move in playSetting.MoveDatas)
