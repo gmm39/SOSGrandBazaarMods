@@ -1,4 +1,6 @@
 ﻿using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
 using BepInEx;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
@@ -26,15 +28,22 @@ public class Plugin : BasePlugin
     
     private static class TestPatch
     {
-        private static Random rnd = new Random();
+        private static Random rnd = new();
         
         private static HashSet<uint> finalMissions =
         [
             30104, 30204, 30304, 30404, 30504, 30604, 30704, 30804, 30904, 31004, 31104, 31204, 31304, 31404, 31504,
             31604, 31704, 31804, 31904, 32004, 32104, 32204, 32304, 32404, 32504, 32604, 32704, 32804
         ];
-        private static List<MissionManager.OrderData> availableMissions = new List<MissionManager.OrderData>();
-        private static List<uint> selectedMissions = new List<uint>();
+        private static List<MissionManager.OrderData> availableMissions = [];
+        private static List<uint> selectedMissions = [];
+
+        [HarmonyPatch(typeof(UITitleMainPage), "PlayTitleLogoAnimation")]
+        [HarmonyPostfix]
+        private static void Postfix()
+        {
+            jsonHandler.JSONTestIn();
+        }
 
         [HarmonyPatch(typeof(MissionManager), "FromSaveData")]
         [HarmonyPostfix]
@@ -136,7 +145,7 @@ public class Plugin : BasePlugin
             unlockConditions.Add(UnlockCondition.None);
             newMission.UnlockConditions = unlockConditions;
             
-            newMission.ConditionParams = new Il2CppSystem.Collections.Generic.List<uint>();
+            newMission.ConditionParams = new();
             newMission.CompleteCondition = CompleteCondition.Delivery;
             newMission.CompleteSubCondition = 0;
             newMission.CompleteSubConditionParam = 0;
@@ -146,5 +155,144 @@ public class Plugin : BasePlugin
             
             foreach(var mission in selectedMissions) Log.LogInfo($"Id: {mission}");
         }
+    }
+
+    private static class jsonHandler
+    {
+        public static void JSONTestOut()
+        {
+            var toot = new Requests
+            {
+                Id = 10000,
+                Category = RequestCategory.None,
+                Items = [new ItemList
+                    {
+                    Items = [110000, 110100],
+                    ItemType = [RequiredItemType.Item, RequiredItemType.Item],
+                    Difficulty = 0,
+                    PickOne = true
+                }, new ItemList
+                    {
+                    Items = [110200, 110201],
+                    ItemType = [RequiredItemType.Item, RequiredItemType.Item],
+                    Difficulty = 0,
+                    PickOne = true
+                }, new ItemList
+                    {
+                    Items = [111000, 111001, 111002, 111003, 111004, 111005, 111006],
+                    ItemType = [RequiredItemType.Item, RequiredItemType.Item, RequiredItemType.Item, RequiredItemType.Item, RequiredItemType.Item, RequiredItemType.Item, RequiredItemType.Item],
+                    Difficulty = 1,
+                    PickOne = true
+                }
+                ],
+                Special = Special.None,
+                Characters = [100, 101, 102, 103, 104, 105],
+                MissionName = "Boys love mulch!",
+                MissionCaption = "Filthy outdoor items make any guy smile.",
+                MissionDescription = "For some reason, every guy\nwants nothing more than junk!",
+                DebugInfo = "Test Json"
+            };
+            
+            string jsonPath = Path.Combine(Paths.PluginPath, "Test1.json");
+            string json = JsonSerializer.Serialize(toot);
+            File.WriteAllText(jsonPath, json);
+        }
+
+        public static void JSONTestIn()
+        {
+            string jsonPath = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/Test.json");
+            var obj = JsonSerializer.Deserialize<Requests>(File.ReadAllText(jsonPath));
+            Log.LogInfo("\n" + JsonSerializer.Serialize(obj, new JsonSerializerOptions() { WriteIndented = true }));
+        }
+    }
+
+    private class Requests
+    {
+        public uint Id { get; set; }
+        public RequestCategory Category { get; set; }
+        public List<ItemList> Items { get; set; }
+        public Special Special {get; set;}
+        public List<uint> Characters { get; set; }
+        public string MissionName { get; set; }
+        public string MissionCaption { get; set; }
+        public string MissionDescription { get; set; }
+        public string DebugInfo { get; set; }
+    }
+
+    private class ItemList
+    {
+        public List<uint> Items { get; set; }
+        public List<RequiredItemType> ItemType { get; set; }
+        public uint Difficulty { get; set; }
+        public bool PickOne { get; set; }
+    }
+
+    private enum RequestCategory
+    {
+        None = 0,
+        AnimalProduct,
+        Bug,
+        Crop,
+        Fish,
+        Flower,
+        Food,
+        Forage,
+        Gemstone,
+        Gift,
+        Ingredient,
+        Other,
+        Mineral,
+        Misc,
+        Seed
+    }
+    
+    private enum Special
+    {
+        None = 0,
+        Spring,
+        Summer,
+        Autumn,
+        Winter,
+        FlowerFestival,
+        AnimalShow,
+        HoneyDay,
+        CropsShow,
+        TeaParty,
+        PetShow,
+        HorseDerby,
+        CookOff,
+        JuiceFestival,
+        PumpkinFestival,
+        HearthDay,
+        StarlightNight,
+        NewYears,
+        BirthdayJules,
+        BirthdayDerek,
+        BirthdayLloyd,
+        BirthdayGabriel,
+        BirthdaySamir,
+        BirthdayArata,
+        BirthdaySophie,
+        BirthdayJune,
+        BirthdayFreya,
+        BirthdayMaple,
+        BirthdayKagetsu,
+        BirthdayDiana,
+        BirthdayFelix,
+        BirthdayErik,
+        BirthdayStuart,
+        BirthdaySonia,
+        BirthdayMadeleine,
+        BirthdayMina,
+        BirthdayWilbur,
+        BirthdayClara,
+        BirthdayKevin,
+        BirthdayIsaac,
+        BirthdayNadine,
+        BirthdaySylvia,
+        BirthdayLaurie,
+        BirthdayMiguel,
+        BirthdayHarold,
+        BirthdaySherene
     }
 }
