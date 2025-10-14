@@ -11,6 +11,7 @@ using BokuMono.ResidentMission;
 using HarmonyLib;
 using Il2CppSystem;
 using ArgumentOutOfRangeException = System.ArgumentOutOfRangeException;
+using NullReferenceException = System.NullReferenceException;
 
 namespace ExtraMissions;
 
@@ -30,19 +31,36 @@ public class Plugin : BasePlugin
     
     private static class TestPatch
     {
-        private static Random rnd = new();
-        private static string requestGroupsPath =
-            Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/data/RequestGroups.json");
+        private static Random rnd;
+        private static string requestGroupsPath;
         
         private static List<RequestGroups> requestGroups;
+
+        private static HashSet<uint> finalMissions;
+        private static List<MissionManager.OrderData> availableMissions;
+        private static List<ResidentMissionMasterData> selectedMissions;
+
+        private static Dictionary<int, float> DifficultyStack;
+        private static Dictionary<int, int> DifficultyQuality;
+        private const int MAX_REQ_COUNT = 3;
         
-        private static HashSet<uint> finalMissions =
-        [
-            30104, 30204, 30304, 30404, 30504, 30604, 30704, 30804, 30904, 31004, 31104, 31204, 31304, 31404, 31504,
-            31604, 31704, 31804, 31904, 32004, 32104, 32204, 32304, 32404, 32504, 32604, 32704, 32804
-        ];
-        private static List<MissionManager.OrderData> availableMissions = [];
-        private static List<uint> selectedMissions = [];
+
+        static TestPatch()
+        {
+            rnd = new Random();
+            
+            requestGroupsPath = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/data/RequestGroups.json");
+            
+            finalMissions = [
+                30104, 30204, 30304, 30404, 30504, 30604, 30704, 30804, 30904, 31004, 31104, 31204, 31304, 31404, 31504,
+                31604, 31704, 31804, 31904, 32004, 32104, 32204, 32304, 32404, 32504, 32604, 32704, 32804
+            ];
+            availableMissions = [];
+            selectedMissions = [];
+            
+            DifficultyStack = new Dictionary<int, float>() { {0, 1.0f}, {1, 1.5f}, {2, 2.0f} };
+            DifficultyQuality = new Dictionary<int, int>() { {0, 0}, {1, 1}, {2, 3} };
+        }
 
         [HarmonyPatch(typeof(UITitleMainPage), "PlayTitleLogoAnimation")]
         [HarmonyPostfix]
@@ -64,9 +82,9 @@ public class Plugin : BasePlugin
         {
             Log.LogInfo("MissionComplete");
 
-            if (!selectedMissions.Contains(id)) return;
+            if (selectedMissions.All(x => x.Id != id)) return;
             
-            selectedMissions.Remove(id);
+            selectedMissions.RemoveAll(x => x.Id == id);
             RefreshAvailableMissions(__instance.OrderDatas);
         }
         
@@ -96,83 +114,46 @@ public class Plugin : BasePlugin
         private static void GenerateNewMission()
         {
             if (availableMissions.Count == 0) return;
-            if (selectedMissions.Count >= 3) return;
+            if (selectedMissions.Count >= MAX_REQ_COUNT) return;
 
+            // Get random mission from available missions
             var index = rnd.Next(availableMissions.Count);
-            var newMission = availableMissions[index].MissionData;
+            var mission = availableMissions[index].MissionData;
             availableMissions[index].State = MissionManager.OrderState.Available;
             availableMissions.RemoveAt(index);
-
-            newMission.RewardCategory = RewardsType.Item;
-            newMission.RewardId = 111000;
-            newMission.RewardNum = 3;
-            newMission.RewardQuality = 6;
-            newMission.RewardIcon = null;
-
-            var newRequest = ChooseRequest(newMission.CharaId);
             
+            var request = ChooseRequest(mission.CharaId);
+            Log.LogInfo(JsonSerializer.Serialize(request, new JsonSerializerOptions() { WriteIndented = true }));
+            ApplyRequestGroup(mission, request);
             
-            
-            
-            
-            var requiredItemType = new Il2CppSystem.Collections.Generic.List<RequiredItemType>();
-            requiredItemType.Add(RequiredItemType.Item);
-            requiredItemType.Add(RequiredItemType.Item);
-            requiredItemType.Add(RequiredItemType.Item);
-            newMission.RequiredItemType = requiredItemType;
-            
-            var requiredItemId = new Il2CppSystem.Collections.Generic.List<uint>();
-            requiredItemId.Add(110500);
-            requiredItemId.Add(0);
-            requiredItemId.Add(0);
-            newMission.RequiredItemId = requiredItemId;
-            
-            var requiredItemStack = new Il2CppSystem.Collections.Generic.List<int>();
-            requiredItemStack.Add(1);
-            requiredItemStack.Add(0);
-            requiredItemStack.Add(0);
-            newMission.RequiredItemStack = requiredItemStack;
-            
-            var requiredItemQuality = new Il2CppSystem.Collections.Generic.List<int>();
-            requiredItemQuality.Add(-1);
-            requiredItemQuality.Add(0);
-            requiredItemQuality.Add(0);
-            newMission.RequiredItemQuality = requiredItemQuality;
-            
-            var requiredItemFreshness = new Il2CppSystem.Collections.Generic.List<int>();
-            requiredItemFreshness.Add(-1);
-            requiredItemFreshness.Add(-1);
-            requiredItemFreshness.Add(-1);
-            newMission.RequiredItemFreshness = requiredItemFreshness;
-            
-            var unlockConditions = new Il2CppSystem.Collections.Generic.List<UnlockCondition>();
-            unlockConditions.Add(UnlockCondition.None);
-            unlockConditions.Add(UnlockCondition.None);
-            unlockConditions.Add(UnlockCondition.None);
-            newMission.UnlockConditions = unlockConditions;
-            
-            newMission.ConditionParams = new();
-            newMission.CompleteCondition = CompleteCondition.Delivery;
-            newMission.CompleteSubCondition = 0;
-            newMission.CompleteSubConditionParam = 0;
-            newMission.CompleteValue = 0;
-            
-            selectedMissions.Add(newMission.Id);
-            
-            foreach(var mission in selectedMissions) Log.LogInfo($"SelectedId: {mission}");
+            selectedMissions.Add(mission);
         }
 
-        private static RequestGroups ChooseRequest(uint charaId)
+        private static RequestGroupSingle ChooseRequest(uint charaId)
         {
-            var possibleRequests = requestGroups.Where(x => x.Characters.Contains(0) || x.Characters.Contains(charaId)).ToList();
-            
+            var possibleRequests =
+                requestGroups.Where(x => x.Characters.Contains(0) || x.Characters.Contains(charaId)).ToList();
             SpecialCheck(possibleRequests);
-            
-            foreach(var request in possibleRequests) Log.LogInfo($"ChosenRequestIds: {request.Id}");
 
-            return possibleRequests[rnd.Next(possibleRequests.Count)];
+            var groupIndex = rnd.Next(possibleRequests.Count);
+            var itemGroupIndex = rnd.Next(possibleRequests[groupIndex].Items.Count);
+
+            var itemList = ChooseItems(possibleRequests[groupIndex].Items[itemGroupIndex]);
+
+            return new RequestGroupSingle
+            {
+                Id = possibleRequests[groupIndex].Id,
+                Category = possibleRequests[groupIndex].Category,
+                Items = itemList,
+                Special = possibleRequests[groupIndex].Special,
+                Characters = possibleRequests[groupIndex].Characters,
+                MissionName = possibleRequests[groupIndex].MissionName,
+                MissionCaption = possibleRequests[groupIndex].MissionCaption,
+                MissionDescription = possibleRequests[groupIndex].MissionDescription,
+                DebugInfo = possibleRequests[groupIndex].DebugInfo,
+            };
         }
-
+        
         private static void SpecialCheck(List<RequestGroups> requests)
         {
             var today = DateManager.Instance.Now;
@@ -515,47 +496,119 @@ public class Plugin : BasePlugin
                 }
             }
         }
+
+        private static ItemList ChooseItems(ItemList list)
+        {
+            var finalItemList = new ItemList();
+            if (list.PickOne)
+            {
+                var itemIndex = rnd.Next(list.ItemIds.Count);
+                var itemIds = new List<uint>();
+                var itemTypes = new List<RequiredItemType>();
+                var itemStack = new List<int>();
+                var itemQuality = new List<int>();
+
+                itemIds.Add(list.ItemIds[itemIndex]);
+                itemIds.Add(0);
+                itemIds.Add(0);
+                itemTypes.Add(list.ItemType[itemIndex]);
+                itemTypes.Add(RequiredItemType.Item);
+                itemTypes.Add(RequiredItemType.Item);
+                itemStack.Add(list.ItemStack[itemIndex]);
+                itemStack.Add(0);
+                itemStack.Add(0);
+                itemQuality.Add(list.ItemQuality[itemIndex]);
+                itemQuality.Add(0);
+                itemQuality.Add(0);
+                
+                finalItemList.ItemIds = itemIds;
+                finalItemList.ItemType = itemTypes;
+                finalItemList.ItemStack = itemStack;
+                finalItemList.ItemQuality = itemQuality;
+                finalItemList.DifficultChance = list.DifficultChance;
+                finalItemList.PickOne = list.PickOne;
+            }
+            else
+            {
+                finalItemList.ItemIds = list.ItemIds;
+                finalItemList.ItemType = list.ItemType;
+                finalItemList.ItemStack = list.ItemStack;
+                finalItemList.ItemQuality = list.ItemQuality;
+                finalItemList.DifficultChance = list.DifficultChance;
+                finalItemList.PickOne = list.PickOne;
+            }
+
+            // Calculate Difficulty
+            if (finalItemList.DifficultChance > rnd.NextDouble())
+            {
+                for (var i = 0; i < finalItemList.ItemIds.Count; i++)
+                {
+                    if(finalItemList.ItemStack[i] != 0)
+                        finalItemList.ItemStack[i] = (int)Math.Round(finalItemList.ItemStack[i] * 2.0f);
+                    if(finalItemList.ItemQuality[i] != -1)
+                        finalItemList.ItemQuality[i] = Math.Clamp(finalItemList.ItemQuality[i] + 2, 1, 14);
+                }
+            }
+
+            return finalItemList;
+        }
+
+        private static void ApplyRequestGroup(ResidentMissionMasterData mission, RequestGroupSingle request)
+        {
+            // TODO: REWARDS NOT IMPLEMENTED
+            mission.RewardCategory = RewardsType.Item;
+            mission.RewardId = 111000;
+            mission.RewardNum = 3;
+            mission.RewardQuality = 6;
+            mission.RewardIcon = null;
+            
+            // Set required item fields
+            mission.RequiredItemType = ToIl2CppList(request.Items.ItemType);
+            mission.RequiredItemId = ToIl2CppList(request.Items.ItemIds);
+            mission.RequiredItemStack = ToIl2CppList(request.Items.ItemStack);
+            mission.RequiredItemQuality = ToIl2CppList(request.Items.ItemQuality);
+            
+            var requiredItemFreshness = new Il2CppSystem.Collections.Generic.List<int>();
+            requiredItemFreshness.Add(-1);
+            requiredItemFreshness.Add(-1);
+            requiredItemFreshness.Add(-1);
+            mission.RequiredItemFreshness = requiredItemFreshness;
+            
+            // Set unlock conditions to none as safety
+            var unlockConditions = new Il2CppSystem.Collections.Generic.List<UnlockCondition>();
+            unlockConditions.Add(UnlockCondition.None);
+            unlockConditions.Add(UnlockCondition.None);
+            unlockConditions.Add(UnlockCondition.None);
+            mission.UnlockConditions = unlockConditions;
+            
+            // Set mission to delivery type
+            mission.ConditionParams = new();
+            mission.CompleteCondition = CompleteCondition.Delivery;
+            mission.CompleteSubCondition = 0;
+            mission.CompleteSubConditionParam = 0;
+            mission.CompleteValue = 0;
+        }
+    }
+
+    private static Il2CppSystem.Collections.Generic.List<T> ToIl2CppList<T>(List<T> list)
+    {
+        var Il2CppList = new Il2CppSystem.Collections.Generic.List<T>();
+        
+        foreach (var item in list)
+        {
+            Il2CppList.Add(item);
+        }
+        
+        return Il2CppList;
     }
 
     private static class jsonHandler
     {
         public static void Write()
         {
-            var toot = new RequestGroups
-            {
-                Id = 10000,
-                Category = RequestCategory.None,
-                Items = [new ItemList
-                    {
-                    Items = [110000, 110100],
-                    ItemType = [RequiredItemType.Item, RequiredItemType.Item],
-                    Difficulty = 0,
-                    PickOne = true
-                }, new ItemList
-                    {
-                    Items = [110200, 110201],
-                    ItemType = [RequiredItemType.Item, RequiredItemType.Item],
-                    Difficulty = 0,
-                    PickOne = true
-                }, new ItemList
-                    {
-                    Items = [111000, 111001, 111002, 111003, 111004, 111005, 111006],
-                    ItemType = [RequiredItemType.Item, RequiredItemType.Item, RequiredItemType.Item, RequiredItemType.Item, RequiredItemType.Item, RequiredItemType.Item, RequiredItemType.Item],
-                    Difficulty = 1,
-                    PickOne = true
-                }
-                ],
-                Special = Special.None,
-                Characters = [100, 101, 102, 103, 104, 105],
-                MissionName = "Boys love mulch!",
-                MissionCaption = "Filthy outdoor items make any guy smile.",
-                MissionDescription = "For some reason, every guy\nwants nothing more than junk!",
-                DebugInfo = "Test Json"
-            };
-            
-            string jsonPath = Path.Combine(Paths.PluginPath, "Test1.json");
-            string json = JsonSerializer.Serialize(toot);
-            File.WriteAllText(jsonPath, json);
+            //string jsonPath = Path.Combine(Paths.PluginPath, "Test1.json");
+            //string json = JsonSerializer.Serialize(toot);
+            //File.WriteAllText(jsonPath, json);
         }
 
         public static List<RequestGroups> Read(string jsonPath)
@@ -578,12 +631,27 @@ public class Plugin : BasePlugin
         public string MissionDescription { get; set; }
         public string DebugInfo { get; set; }
     }
+    
+    private class RequestGroupSingle
+    {
+        public uint Id { get; set; }
+        public RequestCategory Category { get; set; }
+        public ItemList Items { get; set; }
+        public Special Special {get; set;}
+        public List<uint> Characters { get; set; }
+        public string MissionName { get; set; }
+        public string MissionCaption { get; set; }
+        public string MissionDescription { get; set; }
+        public string DebugInfo { get; set; }
+    }
 
     private class ItemList
     {
-        public List<uint> Items { get; set; }
+        public List<uint> ItemIds { get; set; }
         public List<RequiredItemType> ItemType { get; set; }
-        public uint Difficulty { get; set; }
+        public List<int> ItemStack { get; set; }
+        public List<int> ItemQuality { get; set; }
+        public float DifficultChance { get; set; }
         public bool PickOne { get; set; }
     }
 
