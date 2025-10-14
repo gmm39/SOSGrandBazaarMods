@@ -58,6 +58,8 @@ public class Plugin : BasePlugin
     private static ConfigEntry<float> AnimationSiloOut;
     private static ConfigEntry<float> AnimationPutItem;
     private static ConfigEntry<float> AnimationTired;
+    private static ConfigEntry<float> AnimationHoe;
+    private static ConfigEntry<float> AnimationHoeMotionCancel;
     
     // Dive Tweaks
     private static ConfigEntry<float> DiveFadeOutTime;
@@ -165,6 +167,10 @@ public class Plugin : BasePlugin
             ConfigDescription.Empty);
         AnimationTired = Config.Bind("AnimationSpeedTweaks", "Animation_Tired", 30.0f, 
             ConfigDescription.Empty);
+        AnimationHoe = Config.Bind("AnimationSpeedTweaks", "Animation_Hoe", 2.0f, 
+            ConfigDescription.Empty);
+        AnimationHoeMotionCancel = Config.Bind("AnimationSpeedTweaks", "Animation_Hoe_Motion_Cancel", 3.0f, 
+            ConfigDescription.Empty);
         
         // Dive Tweaks
         DiveFadeOutTime = Config.Bind("DiveSettings", "Dive_Fade_Out_Time", 0.5f, 
@@ -229,6 +235,8 @@ public class Plugin : BasePlugin
             playSetting.AnimationSiloOut = AnimationSiloOut.Value;
             playSetting.AnimationPutItem = AnimationPutItem.Value;
             playSetting.AnimationTired = AnimationTired.Value;
+            playSetting.AnimationHoe = AnimationHoe.Value;
+            playSetting.AnimationHoeMotionCancel = AnimationHoeMotionCancel.Value;
             
             // Dive Tweaks
             playSetting.DiveFadeOutTime = DiveFadeOutTime.Value;
