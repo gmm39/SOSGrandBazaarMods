@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using BepInEx;
 using BepInEx.Logging;
@@ -9,6 +10,7 @@ using BokuMono.Data;
 using BokuMono.ResidentMission;
 using HarmonyLib;
 using Il2CppSystem;
+using ArgumentOutOfRangeException = System.ArgumentOutOfRangeException;
 
 namespace ExtraMissions;
 
@@ -29,6 +31,10 @@ public class Plugin : BasePlugin
     private static class TestPatch
     {
         private static Random rnd = new();
+        private static string requestGroupsPath =
+            Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/data/RequestGroups.json");
+        
+        private static List<RequestGroups> requestGroups;
         
         private static HashSet<uint> finalMissions =
         [
@@ -42,15 +48,13 @@ public class Plugin : BasePlugin
         [HarmonyPostfix]
         private static void Postfix()
         {
-            jsonHandler.JSONTestIn();
+            requestGroups = jsonHandler.Read(requestGroupsPath);
         }
 
         [HarmonyPatch(typeof(MissionManager), "FromSaveData")]
         [HarmonyPostfix]
         private static void FromSaveData(MissionManager __instance)
         {
-            Log.LogInfo("FromSaveData");
-            
             RefreshAvailableMissions(__instance.OrderDatas);
         }
         
@@ -81,10 +85,6 @@ public class Plugin : BasePlugin
 
             foreach (var item in orderDatas)
             {
-                Log.LogInfo($"Id: {item.Id}");
-                Log.LogInfo($"State: {item.State}");
-                Log.LogInfo($"Name: {item.MissionData.Name}");
-                
                 if (finalMissions.Contains(item.Id) && item.State is MissionManager.OrderState.Complete or MissionManager.OrderState.OpenShop)
                 {
                     availableMissions.Add(item);
@@ -108,6 +108,12 @@ public class Plugin : BasePlugin
             newMission.RewardNum = 3;
             newMission.RewardQuality = 6;
             newMission.RewardIcon = null;
+
+            var newRequest = ChooseRequest(newMission.CharaId);
+            
+            
+            
+            
             
             var requiredItemType = new Il2CppSystem.Collections.Generic.List<RequiredItemType>();
             requiredItemType.Add(RequiredItemType.Item);
@@ -153,15 +159,369 @@ public class Plugin : BasePlugin
             
             selectedMissions.Add(newMission.Id);
             
-            foreach(var mission in selectedMissions) Log.LogInfo($"Id: {mission}");
+            foreach(var mission in selectedMissions) Log.LogInfo($"SelectedId: {mission}");
+        }
+
+        private static RequestGroups ChooseRequest(uint charaId)
+        {
+            var possibleRequests = requestGroups.Where(x => x.Characters.Contains(0) || x.Characters.Contains(charaId)).ToList();
+            
+            SpecialCheck(possibleRequests);
+            
+            foreach(var request in possibleRequests) Log.LogInfo($"ChosenRequestIds: {request.Id}");
+
+            return possibleRequests[rnd.Next(possibleRequests.Count)];
+        }
+
+        private static void SpecialCheck(List<RequestGroups> requests)
+        {
+            var today = DateManager.Instance.Now;
+            
+            for (var i = 0; i < requests.Count; i++)
+            {
+                var request = requests[i];
+                switch (request.Special)
+                {
+                    case Special.None:
+                        break;
+                    
+                    case Special.Spring:
+                        if (today.Season != BokuMonoSeason.Spring) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.Summer:
+                        if (today.Season != BokuMonoSeason.Summer) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.Autumn:
+                        if (today.Season != BokuMonoSeason.Autumn) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.Winter:
+                        if (today.Season != BokuMonoSeason.Winter) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.FlowerFestival:
+                        var flowerFest = new BokuMonoDateTime(today.Year, 1, 11);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, flowerFest) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.AnimalShow:
+                        BokuMonoDateTime animalShow;
+                        switch (today.Season)
+                        {
+                            case BokuMonoSeason.Spring:
+                                animalShow = new BokuMonoDateTime(today.Year, 1, 16);
+                                break;
+                            case BokuMonoSeason.Summer:
+                                animalShow = new BokuMonoDateTime(today.Year, 2, 11);
+                                break;
+                            case BokuMonoSeason.Autumn:
+                                animalShow = new BokuMonoDateTime(today.Year, 3, 15);
+                                break;
+                            case BokuMonoSeason.Winter:
+                                animalShow = new BokuMonoDateTime(today.Year, 4, 12);
+                                break;
+                            default:
+                                throw new ArgumentOutOfRangeException();
+                        }
+
+                        if ((today is { Season: BokuMonoSeason.Spring, Year: 1 }) || 
+                            !(BokuMonoDateTimeUtility.GetElapsedDays(today, animalShow) is < 7 and > 0))
+                        {
+                            requests.RemoveAt(i);
+                        }
+                        break;
+                    
+                    case Special.HoneyDay:
+                        var honeyDay = new BokuMonoDateTime(today.Year, 1, 21);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, honeyDay) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.CropsShow:
+                        BokuMonoDateTime cropsShow;
+                        switch (today.Season)
+                        {
+                            case BokuMonoSeason.Spring:
+                                cropsShow = new BokuMonoDateTime(today.Year, 1, 26);
+                                break;
+                            case BokuMonoSeason.Summer:
+                                cropsShow = new BokuMonoDateTime(today.Year, 2, 21);
+                                break;
+                            case BokuMonoSeason.Autumn:
+                                cropsShow = new BokuMonoDateTime(today.Year, 3, 25);
+                                break;
+                            case BokuMonoSeason.Winter:
+                                cropsShow = new BokuMonoDateTime(today.Year, 4, 22);
+                                break;
+                            default:
+                                throw new ArgumentOutOfRangeException();
+                        }
+
+                        if ((today is { Season: BokuMonoSeason.Spring, Year: 1 }) || 
+                            !(BokuMonoDateTimeUtility.GetElapsedDays(today, cropsShow) is < 7 and > 0))
+                        {
+                            requests.RemoveAt(i);
+                        }
+                        break;
+                    
+                    case Special.TeaParty:
+                        var teaParty = new BokuMonoDateTime(today.Year, 1, 27);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, teaParty) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.PetShow:
+                        BokuMonoDateTime petShow;
+                        switch (today.Season)
+                        {
+                            case BokuMonoSeason.Summer:
+                                petShow = new BokuMonoDateTime(today.Year, 2, 3);
+                                break;
+                            case BokuMonoSeason.Winter:
+                                petShow = new BokuMonoDateTime(today.Year, 4, 4);
+                                break;
+                            case BokuMonoSeason.Spring:
+                            case BokuMonoSeason.Autumn:
+                                return;
+                            default:
+                                throw new ArgumentOutOfRangeException();
+                        }
+
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, petShow) is < 7 and > 0))
+                        {
+                            requests.RemoveAt(i);
+                        }
+                        break;
+                    
+                    case Special.HorseDerby:
+                        BokuMonoDateTime horseDerby;
+                        switch (today.Season)
+                        {
+                            case BokuMonoSeason.Summer:
+                                horseDerby = new BokuMonoDateTime(today.Year, 2, 16);
+                                break;
+                            case BokuMonoSeason.Winter:
+                                horseDerby = new BokuMonoDateTime(today.Year, 4, 17);
+                                break;
+                            case BokuMonoSeason.Spring:
+                            case BokuMonoSeason.Autumn:
+                                return;
+                            default:
+                                throw new ArgumentOutOfRangeException();
+                        }
+
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, horseDerby) is < 7 and > 0))
+                        {
+                            requests.RemoveAt(i);
+                        }
+                        break;
+                    
+                    case Special.CookOff:
+                        var cookOff = new BokuMonoDateTime(today.Year, 3, 4);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, cookOff) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.JuiceFestival:
+                        var juiceFestival = new BokuMonoDateTime(today.Year, 3, 21);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, juiceFestival) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.PumpkinFestival:
+                        var pumpkinFestival = new BokuMonoDateTime(today.Year, 3, 28);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, pumpkinFestival) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.HearthDay:
+                        var hearthDay = new BokuMonoDateTime(today.Year, 4, 9);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, hearthDay) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.StarlightNight:
+                        var starlightNight = new BokuMonoDateTime(today.Year, 4, 25);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, starlightNight) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.NewYears:
+                        var newYears = new BokuMonoDateTime(today.Year, 4, 31);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, newYears) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayJules:
+                        var birthdayJules = new BokuMonoDateTime(today.Year, 3, 20);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayJules) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayDerek:
+                        var birthdayDerek = new BokuMonoDateTime(today.Year, 2, 12);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayDerek) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayLloyd:
+                        var birthdayLloyd = new BokuMonoDateTime(today.Year, 3, 3);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayLloyd) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayGabriel:
+                        var birthdayGabriel = new BokuMonoDateTime(today.Year, 4, 28);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayGabriel) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdaySamir:
+                        var birthdaySamir = new BokuMonoDateTime(today.Year, 4, 26);
+                        if (MasterDataManager.Instance.ConditionMaster.IsSatisfied(ConditionMasterId.Condition_910215) &&
+                            !(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdaySamir) is < 7 and > 0))
+                        {
+                            requests.RemoveAt(i);
+                        }
+                        break;
+                    
+                    case Special.BirthdayArata:
+                        var birthdayArata = new BokuMonoDateTime(today.Year, 4, 17);
+                        if (MasterDataManager.Instance.ConditionMaster.IsSatisfied(ConditionMasterId.Condition_910109) &&
+                            !(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayArata) is < 7 and > 0))
+                        {
+                            requests.RemoveAt(i);
+                        }
+                        break;
+                    
+                    case Special.BirthdaySophie:
+                        var birthdaySophie = new BokuMonoDateTime(today.Year, 1, 16);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdaySophie) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayJune:
+                        var birthdayJune = new BokuMonoDateTime(today.Year, 4, 12);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayJune) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayFreya:
+                        var birthdayFreya = new BokuMonoDateTime(today.Year, 3, 25);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayFreya) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayMaple:
+                        var birthdayMaple = new BokuMonoDateTime(today.Year, 3, 14);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayMaple) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayKagetsu:
+                        var birthdayKagetsu = new BokuMonoDateTime(today.Year, 1, 5);
+                        if (MasterDataManager.Instance.ConditionMaster.IsSatisfied(ConditionMasterId.Condition_910514) &&
+                            !(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayKagetsu) is < 7 and > 0))
+                        {
+                            requests.RemoveAt(i);
+                        }
+                        break;
+                    
+                    case Special.BirthdayDiana:
+                        var birthdayDiana = new BokuMonoDateTime(today.Year, 3, 22);
+                        if (MasterDataManager.Instance.ConditionMaster.IsSatisfied(ConditionMasterId.Condition_910109) &&
+                            !(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayDiana) is < 7 and > 0))
+                        {
+                            requests.RemoveAt(i);
+                        }
+                        break;
+                    
+                    case Special.BirthdayFelix:
+                        var birthdayFelix = new BokuMonoDateTime(today.Year, 2, 1);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayFelix) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayErik:
+                        var birthdayErik = new BokuMonoDateTime(today.Year, 1, 20);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayErik) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayStuart:
+                        var birthdayStuart = new BokuMonoDateTime(today.Year, 3, 11);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayStuart) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdaySonia:
+                        var birthdaySonia = new BokuMonoDateTime(today.Year, 1, 25);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdaySonia) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayMadeleine:
+                        var birthdayMadeleine = new BokuMonoDateTime(today.Year, 1, 18);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayMadeleine) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayMina:
+                        var birthdayMina = new BokuMonoDateTime(today.Year, 4, 4);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayMina) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayWilbur:
+                        var birthdayWilbur = new BokuMonoDateTime(today.Year, 2, 3);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayWilbur) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayClara:
+                        var birthdayClara = new BokuMonoDateTime(today.Year, 3, 29);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayClara) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayKevin:
+                        var birthdayKevin = new BokuMonoDateTime(today.Year, 2, 25);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayKevin) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayIsaac:
+                        var birthdayIsaac = new BokuMonoDateTime(today.Year, 3, 6);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayIsaac) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayNadine:
+                        var birthdayNadine = new BokuMonoDateTime(today.Year, 2, 30);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayNadine) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdaySylvia:
+                        var birthdaySylvia = new BokuMonoDateTime(today.Year, 3, 18);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdaySylvia) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayLaurie:
+                        var birthdayLaurie = new BokuMonoDateTime(today.Year, 3, 18);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayLaurie) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayMiguel:
+                        var birthdayMiguel = new BokuMonoDateTime(today.Year, 2, 21);
+                        if (!(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayMiguel) is < 7 and > 0)) requests.RemoveAt(i);
+                        break;
+                    
+                    case Special.BirthdayHarold:
+                        var birthdayHarold = new BokuMonoDateTime(today.Year, 2, 7);
+                        if (MasterDataManager.Instance.ConditionMaster.IsSatisfied(ConditionMasterId.Condition_910109) &&
+                            !(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdayHarold) is < 7 and > 0))
+                        {
+                            requests.RemoveAt(i);
+                        }
+                        break;
+                    
+                    case Special.BirthdaySherene:
+                        var birthdaySherene = new BokuMonoDateTime(today.Year, 2, 16);
+                        if (MasterDataManager.Instance.ConditionMaster.IsSatisfied(ConditionMasterId.Condition_910216) &&
+                            !(BokuMonoDateTimeUtility.GetElapsedDays(today, birthdaySherene) is < 7 and > 0))
+                        {
+                            requests.RemoveAt(i);
+                        }
+                        break;
+                    
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
         }
     }
 
     private static class jsonHandler
     {
-        public static void JSONTestOut()
+        public static void Write()
         {
-            var toot = new Requests
+            var toot = new RequestGroups
             {
                 Id = 10000,
                 Category = RequestCategory.None,
@@ -198,15 +558,15 @@ public class Plugin : BasePlugin
             File.WriteAllText(jsonPath, json);
         }
 
-        public static void JSONTestIn()
+        public static List<RequestGroups> Read(string jsonPath)
         {
-            string jsonPath = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/Test.json");
-            var obj = JsonSerializer.Deserialize<Requests>(File.ReadAllText(jsonPath));
-            Log.LogInfo("\n" + JsonSerializer.Serialize(obj, new JsonSerializerOptions() { WriteIndented = true }));
+            return File.Exists(jsonPath)
+                ? JsonSerializer.Deserialize<List<RequestGroups>>(File.ReadAllText(jsonPath))
+                : null;
         }
     }
 
-    private class Requests
+    private class RequestGroups
     {
         public uint Id { get; set; }
         public RequestCategory Category { get; set; }
