@@ -6,10 +6,12 @@ using BepInEx;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
 using BokuMono;
+using BokuMono.Animal;
 using BokuMono.Data;
 using BokuMono.ResidentMission;
 using HarmonyLib;
 using Il2CppSystem;
+using AnimalType = BokuMono.Data.AnimalType;
 using ArgumentOutOfRangeException = System.ArgumentOutOfRangeException;
 using NullReferenceException = System.NullReferenceException;
 
@@ -31,42 +33,41 @@ public class Plugin : BasePlugin
     
     private static class TestPatch
     {
-        private static Random rnd;
-        private static string requestGroupsPath;
+        private static readonly Random Rnd;
+        private static readonly string RequestGroupsPath;
+        private static readonly string RewardGroupsPath;
         
-        private static List<RequestGroups> requestGroups;
+        private static List<RequestGroups> _requestGroups;
+        private static List<RewardGroups> _rewardGroups;
 
-        private static HashSet<uint> finalMissions;
-        private static List<MissionManager.OrderData> availableMissions;
-        private static List<ResidentMissionMasterData> selectedMissions;
+        private static readonly HashSet<uint> FinalMissions;
+        private static List<MissionManager.OrderData> _availableMissions;
+        private static List<ResidentMissionMasterData> _selectedMissions;
 
-        private static Dictionary<int, float> DifficultyStack;
-        private static Dictionary<int, int> DifficultyQuality;
         private const int MAX_REQ_COUNT = 3;
         
 
         static TestPatch()
         {
-            rnd = new Random();
+            Rnd = new Random();
             
-            requestGroupsPath = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/data/RequestGroups.json");
+            RequestGroupsPath = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/data/RequestGroups.json");
+            RewardGroupsPath = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/data/RewardGroups.json");
             
-            finalMissions = [
+            FinalMissions = [
                 30104, 30204, 30304, 30404, 30504, 30604, 30704, 30804, 30904, 31004, 31104, 31204, 31304, 31404, 31504,
                 31604, 31704, 31804, 31904, 32004, 32104, 32204, 32304, 32404, 32504, 32604, 32704, 32804
             ];
-            availableMissions = [];
-            selectedMissions = [];
-            
-            DifficultyStack = new Dictionary<int, float>() { {0, 1.0f}, {1, 1.5f}, {2, 2.0f} };
-            DifficultyQuality = new Dictionary<int, int>() { {0, 0}, {1, 1}, {2, 3} };
+            _availableMissions = [];
+            _selectedMissions = [];
         }
 
         [HarmonyPatch(typeof(UITitleMainPage), "PlayTitleLogoAnimation")]
         [HarmonyPostfix]
         private static void Postfix()
         {
-            requestGroups = jsonHandler.Read(requestGroupsPath);
+            _requestGroups = jsonHandler.Read<List<RequestGroups>>(RequestGroupsPath);
+            _rewardGroups = jsonHandler.Read<List<RewardGroups>>(RewardGroupsPath);
         }
 
         [HarmonyPatch(typeof(MissionManager), "FromSaveData")]
@@ -82,9 +83,9 @@ public class Plugin : BasePlugin
         {
             Log.LogInfo("MissionComplete");
 
-            if (selectedMissions.All(x => x.Id != id)) return;
+            if (_selectedMissions.All(x => x.Id != id)) return;
             
-            selectedMissions.RemoveAll(x => x.Id == id);
+            _selectedMissions.RemoveAll(x => x.Id == id);
             RefreshAvailableMissions(__instance.OrderDatas);
         }
         
@@ -99,13 +100,13 @@ public class Plugin : BasePlugin
 
         private static void RefreshAvailableMissions(Il2CppSystem.Collections.Generic.List<MissionManager.OrderData> orderDatas)
         {
-            availableMissions.Clear();
+            _availableMissions.Clear();
 
             foreach (var item in orderDatas)
             {
-                if (finalMissions.Contains(item.Id) && item.State is MissionManager.OrderState.Complete or MissionManager.OrderState.OpenShop)
+                if (FinalMissions.Contains(item.Id) && item.State is MissionManager.OrderState.Complete or MissionManager.OrderState.OpenShop)
                 {
-                    availableMissions.Add(item);
+                    _availableMissions.Add(item);
                     Log.LogInfo($"Mission {item.Id} added to available missions!");
                 }
             }
@@ -113,48 +114,108 @@ public class Plugin : BasePlugin
 
         private static void GenerateNewMission()
         {
-            if (availableMissions.Count == 0) return;
-            if (selectedMissions.Count >= MAX_REQ_COUNT) return;
+            if (_availableMissions.Count == 0) return;
+            if (_selectedMissions.Count >= MAX_REQ_COUNT) return;
 
             // Get random mission from available missions
-            var index = rnd.Next(availableMissions.Count);
-            var mission = availableMissions[index].MissionData;
-            availableMissions[index].State = MissionManager.OrderState.Available;
-            availableMissions.RemoveAt(index);
+            var index = Rnd.Next(_availableMissions.Count);
+            var mission = _availableMissions[index].MissionData;
+            _availableMissions[index].State = MissionManager.OrderState.Available;
+            _availableMissions.RemoveAt(index);
             
             var request = ChooseRequest(mission.CharaId);
             Log.LogInfo(JsonSerializer.Serialize(request, new JsonSerializerOptions() { WriteIndented = true }));
             ApplyRequestGroup(mission, request);
             
-            selectedMissions.Add(mission);
+            _selectedMissions.Add(mission);
         }
 
-        private static RequestGroupSingle ChooseRequest(uint charaId)
+        private static MissionInfo ChooseRequest(uint charaId)
         {
             var possibleRequests =
-                requestGroups.Where(x => x.Characters.Contains(0) || x.Characters.Contains(charaId)).ToList();
-            SpecialCheck(possibleRequests);
+                _requestGroups.Where(x => x.Characters.Contains(0) || x.Characters.Contains(charaId)).ToList();
+            CheckSpecial(possibleRequests);
 
-            var groupIndex = rnd.Next(possibleRequests.Count);
-            var itemGroupIndex = rnd.Next(possibleRequests[groupIndex].Items.Count);
+            var groupIndex = Rnd.Next(possibleRequests.Count);
+            var itemGroupIndex = Rnd.Next(possibleRequests[groupIndex].Items.Count);
 
-            var itemList = ChooseItems(possibleRequests[groupIndex].Items[itemGroupIndex]);
-
-            return new RequestGroupSingle
+            var tempItemList = possibleRequests[groupIndex].Items[itemGroupIndex];
+            
+            var itemIds = new List<uint>();
+            var itemTypes = new List<RequiredItemType>();
+            var itemStack = new List<int>();
+            var itemQuality = new List<int>();
+            
+            // Calculate item list
+            if (tempItemList.PickOne)
             {
-                Id = possibleRequests[groupIndex].Id,
+                var itemIndex = Rnd.Next(tempItemList.ItemIds.Count);
+
+                itemIds.Add(tempItemList.ItemIds[itemIndex]);
+                itemIds.Add(0);
+                itemIds.Add(0);
+                itemTypes.Add(tempItemList.ItemType[itemIndex]);
+                itemTypes.Add(RequiredItemType.Item);
+                itemTypes.Add(RequiredItemType.Item);
+                itemStack.Add(tempItemList.ItemStack[itemIndex]);
+                itemStack.Add(0);
+                itemStack.Add(0);
+                itemQuality.Add(tempItemList.ItemQuality[itemIndex]);
+                itemQuality.Add(0);
+                itemQuality.Add(0);
+            }
+            else
+            {
+                itemIds = tempItemList.ItemIds;
+                itemTypes = tempItemList.ItemType;
+                itemStack = tempItemList.ItemStack;
+                itemQuality = tempItemList.ItemQuality;
+            }
+            
+            // Calculate reward
+            var rewardGroup = _rewardGroups.Find(x => x.Category == possibleRequests[groupIndex].Category);
+            var rewardItemIndex = Rnd.Next(rewardGroup.ItemIds.Count);
+            
+            var rewardItemId = rewardGroup.ItemIds[rewardItemIndex];
+            var rewardItemStack = rewardGroup.ItemStack[rewardItemIndex];
+            var rewardItemQuality = rewardGroup.ItemQuality[rewardItemIndex];
+
+            // Calculate Difficulty
+            if (tempItemList.DifficultChance > Rnd.NextDouble())
+            {
+                for (var i = 0; i < itemIds.Count; i++)
+                {
+                    if(itemStack[i] != 0)
+                        itemStack[i] = (int)Math.Round(itemStack[i] * 2.0f);
+                    if(itemQuality[i] > 0)
+                        itemQuality[i] = Math.Clamp(itemQuality[i] + 2, 1, 14);
+                }
+
+                rewardItemStack = (int)Math.Round(rewardItemStack * 2.0f);
+                rewardItemQuality = Math.Clamp(rewardItemQuality + 2, 1, 14);
+            }
+            
+            return new MissionInfo
+            {
+                RequestGroupId = possibleRequests[groupIndex].Id,
+                RewardGroupId = rewardGroup.Id,
                 Category = possibleRequests[groupIndex].Category,
-                Items = itemList,
+                ItemId = itemIds,
+                ItemType = itemTypes,
+                ItemStack = itemStack,
+                ItemQuality = itemQuality,
+                RewardItemId = rewardItemId,
+                RewardItemStack = rewardItemStack,
+                RewardItemQuality = rewardItemQuality,
                 Special = possibleRequests[groupIndex].Special,
-                Characters = possibleRequests[groupIndex].Characters,
                 MissionName = possibleRequests[groupIndex].MissionName,
                 MissionCaption = possibleRequests[groupIndex].MissionCaption,
                 MissionDescription = possibleRequests[groupIndex].MissionDescription,
-                DebugInfo = possibleRequests[groupIndex].DebugInfo,
+                DebugInfo = possibleRequests[groupIndex].DebugInfo
             };
         }
         
-        private static void SpecialCheck(List<RequestGroups> requests)
+        private static void CheckSpecial(List<RequestGroups> requests)
         {
             var today = DateManager.Instance.Now;
             
@@ -165,7 +226,7 @@ public class Plugin : BasePlugin
                 {
                     case Special.None:
                         break;
-                    
+                    // TODO: MORE SENSICAL SEASONAL DETERMINATION
                     case Special.Spring:
                         if (today.Season != BokuMonoSeason.Spring) requests.RemoveAt(i);
                         break;
@@ -496,77 +557,23 @@ public class Plugin : BasePlugin
                 }
             }
         }
-
-        private static ItemList ChooseItems(ItemList list)
-        {
-            var finalItemList = new ItemList();
-            if (list.PickOne)
-            {
-                var itemIndex = rnd.Next(list.ItemIds.Count);
-                var itemIds = new List<uint>();
-                var itemTypes = new List<RequiredItemType>();
-                var itemStack = new List<int>();
-                var itemQuality = new List<int>();
-
-                itemIds.Add(list.ItemIds[itemIndex]);
-                itemIds.Add(0);
-                itemIds.Add(0);
-                itemTypes.Add(list.ItemType[itemIndex]);
-                itemTypes.Add(RequiredItemType.Item);
-                itemTypes.Add(RequiredItemType.Item);
-                itemStack.Add(list.ItemStack[itemIndex]);
-                itemStack.Add(0);
-                itemStack.Add(0);
-                itemQuality.Add(list.ItemQuality[itemIndex]);
-                itemQuality.Add(0);
-                itemQuality.Add(0);
-                
-                finalItemList.ItemIds = itemIds;
-                finalItemList.ItemType = itemTypes;
-                finalItemList.ItemStack = itemStack;
-                finalItemList.ItemQuality = itemQuality;
-                finalItemList.DifficultChance = list.DifficultChance;
-                finalItemList.PickOne = list.PickOne;
-            }
-            else
-            {
-                finalItemList.ItemIds = list.ItemIds;
-                finalItemList.ItemType = list.ItemType;
-                finalItemList.ItemStack = list.ItemStack;
-                finalItemList.ItemQuality = list.ItemQuality;
-                finalItemList.DifficultChance = list.DifficultChance;
-                finalItemList.PickOne = list.PickOne;
-            }
-
-            // Calculate Difficulty
-            if (finalItemList.DifficultChance > rnd.NextDouble())
-            {
-                for (var i = 0; i < finalItemList.ItemIds.Count; i++)
-                {
-                    if(finalItemList.ItemStack[i] != 0)
-                        finalItemList.ItemStack[i] = (int)Math.Round(finalItemList.ItemStack[i] * 2.0f);
-                    if(finalItemList.ItemQuality[i] != -1)
-                        finalItemList.ItemQuality[i] = Math.Clamp(finalItemList.ItemQuality[i] + 2, 1, 14);
-                }
-            }
-
-            return finalItemList;
-        }
-
-        private static void ApplyRequestGroup(ResidentMissionMasterData mission, RequestGroupSingle request)
-        {
-            // TODO: REWARDS NOT IMPLEMENTED
+        
+        private static void ApplyRequestGroup(ResidentMissionMasterData mission, MissionInfo request)
+        { 
+            // TODO: Dynamic quality determination
+            
+            // Set rewards
             mission.RewardCategory = RewardsType.Item;
-            mission.RewardId = 111000;
-            mission.RewardNum = 3;
-            mission.RewardQuality = 6;
+            mission.RewardId = request.RewardItemId;
+            mission.RewardNum = request.RewardItemStack;
+            mission.RewardQuality = request.RewardItemQuality;
             mission.RewardIcon = null;
             
             // Set required item fields
-            mission.RequiredItemType = ToIl2CppList(request.Items.ItemType);
-            mission.RequiredItemId = ToIl2CppList(request.Items.ItemIds);
-            mission.RequiredItemStack = ToIl2CppList(request.Items.ItemStack);
-            mission.RequiredItemQuality = ToIl2CppList(request.Items.ItemQuality);
+            mission.RequiredItemType = Il2CppHelper.ToIl2CppList(request.ItemType);
+            mission.RequiredItemId = Il2CppHelper.ToIl2CppList(request.ItemId);
+            mission.RequiredItemStack = Il2CppHelper.ToIl2CppList(request.ItemStack);
+            mission.RequiredItemQuality = Il2CppHelper.ToIl2CppList(request.ItemQuality);
             
             var requiredItemFreshness = new Il2CppSystem.Collections.Generic.List<int>();
             requiredItemFreshness.Add(-1);
@@ -589,17 +596,47 @@ public class Plugin : BasePlugin
             mission.CompleteValue = 0;
         }
     }
-
-    private static Il2CppSystem.Collections.Generic.List<T> ToIl2CppList<T>(List<T> list)
+    
+    // TODO: Future use in dynamic quality calculations
+    private static void CheckAnimals()
     {
-        var Il2CppList = new Il2CppSystem.Collections.Generic.List<T>();
-        
-        foreach (var item in list)
+        var farmAnimals = Il2CppHelper.ToSystemList(new Il2CppSystem.Collections.Generic.List<AnimalParemeterBase>(AnimalManager.Instance.AllAnimalParams))
+            .Where(x => x.ToFarmAnimalParameter != null)
+            .Select(x => x.ToFarmAnimalParameter).ToList();
+            
+        foreach (var animal in farmAnimals)
+        {   
+            Log.LogInfo($"FarmAnimalTypeId: {(AnimalType)animal.FarmAnimalTypeId}");
+            Log.LogInfo($"ProductType: {animal.GetProductType()}");
+            Log.LogInfo($"ProductQuality: {animal.GetProductQuality()}");
+        }
+    }
+
+    private static class Il2CppHelper
+    {
+        public static Il2CppSystem.Collections.Generic.List<T> ToIl2CppList<T>(List<T> list)
         {
-            Il2CppList.Add(item);
+            var Il2CppList = new Il2CppSystem.Collections.Generic.List<T>();
+        
+            foreach (var item in list)
+            {
+                Il2CppList.Add(item);
+            }
+        
+            return Il2CppList;
         }
         
-        return Il2CppList;
+        public static List<T> ToSystemList<T>(Il2CppSystem.Collections.Generic.List<T> list)
+        {
+            var SystemList = new List<T>();
+        
+            foreach (var item in list)
+            {
+                SystemList.Add(item);
+            }
+        
+            return SystemList;
+        }
     }
 
     private static class jsonHandler
@@ -611,32 +648,38 @@ public class Plugin : BasePlugin
             //File.WriteAllText(jsonPath, json);
         }
 
-        public static List<RequestGroups> Read(string jsonPath)
+        public static T Read<T>(string jsonPath) where T : class
         {
             return File.Exists(jsonPath)
-                ? JsonSerializer.Deserialize<List<RequestGroups>>(File.ReadAllText(jsonPath))
+                ? JsonSerializer.Deserialize<T>(File.ReadAllText(jsonPath))
                 : null;
         }
     }
 
-    private class RequestGroups
+    private class MissionInfo
     {
-        public uint Id { get; set; }
+        public uint RequestGroupId { get; set; }
+        public uint RewardGroupId { get; set; }
         public RequestCategory Category { get; set; }
-        public List<ItemList> Items { get; set; }
+        public List<uint> ItemId { get; set; }
+        public List<RequiredItemType> ItemType { get; set; }
+        public List<int> ItemStack { get; set; }
+        public List<int> ItemQuality { get; set; }
+        public uint RewardItemId { get; set; }
+        public int RewardItemStack { get; set; }
+        public int RewardItemQuality { get; set; }
         public Special Special {get; set;}
-        public List<uint> Characters { get; set; }
         public string MissionName { get; set; }
         public string MissionCaption { get; set; }
         public string MissionDescription { get; set; }
         public string DebugInfo { get; set; }
     }
     
-    private class RequestGroupSingle
+    private class RequestGroups
     {
         public uint Id { get; set; }
         public RequestCategory Category { get; set; }
-        public ItemList Items { get; set; }
+        public List<ItemList> Items { get; set; }
         public Special Special {get; set;}
         public List<uint> Characters { get; set; }
         public string MissionName { get; set; }
@@ -653,6 +696,15 @@ public class Plugin : BasePlugin
         public List<int> ItemQuality { get; set; }
         public float DifficultChance { get; set; }
         public bool PickOne { get; set; }
+    }
+    
+    private class RewardGroups
+    {
+        public uint Id { get; set; }
+        public RequestCategory Category { get; set; }
+        public List<uint> ItemIds { get; set; }
+        public List<int> ItemStack { get; set; }
+        public List<int> ItemQuality { get; set; }
     }
 
     private enum RequestCategory
