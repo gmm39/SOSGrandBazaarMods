@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PetAnimalTweaks", "PetAnimalTweaks\PetAnimalTweaks.csproj", "{EC21352E-FA5D-4319-8921-ADB1A72556BB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{EC21352E-FA5D-4319-8921-ADB1A72556BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC21352E-FA5D-4319-8921-ADB1A72556BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC21352E-FA5D-4319-8921-ADB1A72556BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC21352E-FA5D-4319-8921-ADB1A72556BB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
