@@ -9,10 +9,12 @@ using BokuMono;
 using BokuMono.Animal;
 using BokuMono.Data;
 using BokuMono.ResidentMission;
+using BokuMono.SaveData;
 using HarmonyLib;
 using Il2CppSystem;
 using AnimalType = BokuMono.Data.AnimalType;
 using ArgumentOutOfRangeException = System.ArgumentOutOfRangeException;
+using StringSplitOptions = System.StringSplitOptions;
 using NullReferenceException = System.NullReferenceException;
 
 namespace ExtraMissions;
@@ -36,6 +38,7 @@ public class Plugin : BasePlugin
         private static readonly Random Rnd;
         private static readonly string RequestGroupsPath;
         private static readonly string RewardGroupsPath;
+        private static string SavePathBase;
         
         private static List<RequestGroups> _requestGroups;
         private static List<RewardGroups> _rewardGroups;
@@ -45,6 +48,7 @@ public class Plugin : BasePlugin
         private static List<ResidentMissionMasterData> _selectedMissions;
 
         private const int MAX_REQ_COUNT = 3;
+        private const bool ENABLE_DEBUG = true;
         
 
         static TestPatch()
@@ -53,6 +57,7 @@ public class Plugin : BasePlugin
             
             RequestGroupsPath = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/data/RequestGroups.json");
             RewardGroupsPath = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/data/RewardGroups.json");
+            SavePathBase = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/saves/");
             
             FinalMissions = [
                 30104, 30204, 30304, 30404, 30504, 30604, 30704, 30804, 30904, 31004, 31104, 31204, 31304, 31404, 31504,
@@ -64,24 +69,76 @@ public class Plugin : BasePlugin
 
         [HarmonyPatch(typeof(UITitleMainPage), "PlayTitleLogoAnimation")]
         [HarmonyPostfix]
-        private static void Postfix()
+        private static void LoadDataFiles()
         {
-            _requestGroups = jsonHandler.Read<List<RequestGroups>>(RequestGroupsPath);
-            _rewardGroups = jsonHandler.Read<List<RewardGroups>>(RewardGroupsPath);
+            _requestGroups = JsonHandler.Read<List<RequestGroups>>(RequestGroupsPath);
+            _rewardGroups = JsonHandler.Read<List<RewardGroups>>(RewardGroupsPath);
+            
+            if(_requestGroups is null || _rewardGroups is null) Log.LogError("RequestGroups or RewardGroups are invalid!");
+            else if(ENABLE_DEBUG) Log.LogMessage("Data files loaded!");
+        }
+        
+        [HarmonyPatch(typeof(SaveDataManager), "SlotSaveAsync")]
+        [HarmonyPostfix]
+        private static void OnGameSave(int slot)
+        {
+            Log.LogInfo("OnGameSave");
+            var langMan = LanguageManager.Instance;
+            var toSave = _selectedMissions.Select(mission => new MissionInfo
+                {
+                    MissionId = mission.Id,
+                    ItemId = Il2CppHelper.ToSystemList(mission.RequiredItemId),
+                    ItemType = Il2CppHelper.ToSystemList(mission.RequiredItemType),
+                    ItemStack = Il2CppHelper.ToSystemList(mission.RequiredItemStack),
+                    ItemQuality = Il2CppHelper.ToSystemList(mission.RequiredItemQuality),
+                    RewardItemId = mission.RewardId,
+                    RewardItemStack = mission.RewardNum,
+                    RewardItemQuality = mission.RewardQuality,
+                    MissionName =
+                        langMan.GetLocalizeText(LocalizeTextTableType.MissionNameText, mission.NameId),
+                    MissionCondition =
+                        langMan.GetLocalizeText(LocalizeTextTableType.MissionConditionsText, mission.ConditionsTextId),
+                    MissionCaption =
+                        langMan.GetLocalizeText(LocalizeTextTableType.MissionCaptionText, mission.CaptionId).Replace("\n", " "),
+                }).ToList();
+
+            foreach (var mission in toSave) Log.LogInfo($"Saving mission {mission.MissionId}");
+            
+            var success = JsonHandler.Write(SavePathBase + $"Save{slot}.json", toSave);
+            
+            if(ENABLE_DEBUG) Log.LogMessage($"Save to slot {slot} " + (success ? "successful!" : "failed!"));
         }
 
         [HarmonyPatch(typeof(MissionManager), "FromSaveData")]
         [HarmonyPostfix]
-        private static void FromSaveData(MissionManager __instance)
+        private static void OnGameLoad(MissionManager __instance)
         {
+            _availableMissions.Clear();
+            _selectedMissions.Clear();
+            
+            var loadData = JsonHandler.Read<List<MissionInfo>>(SavePathBase + $"Save{SaveDataManager.Instance.LoadSlot}.json");
+            if (loadData != null)
+            {
+                var orderDatas = Il2CppHelper.ToSystemList(__instance.OrderDatas);
+
+                foreach (var mission in loadData)
+                {
+                    var missionData = orderDatas.Find(x => x.Id == mission.MissionId).MissionData;
+                    ApplyRequest(missionData, mission);
+                    _selectedMissions.Add(missionData);
+                }
+                if(ENABLE_DEBUG) Log.LogMessage($"Load from slot {SaveDataManager.Instance.LoadSlot} successful!");
+            }
+            else if(ENABLE_DEBUG) Log.LogMessage($"Save{SaveDataManager.Instance.LoadSlot} does not exist or failed to load!");
+
             RefreshAvailableMissions(__instance.OrderDatas);
         }
         
         [HarmonyPatch(typeof(MissionManager), "MissionComplete")]
         [HarmonyPostfix]
-        private static void MissionComplete(MissionManager __instance, uint id)
+        private static void OnMissionComplete(MissionManager __instance, uint id)
         {
-            Log.LogInfo("MissionComplete");
+            if(ENABLE_DEBUG) Log.LogMessage("Function 'OnMissionComplete' fired!");
 
             if (_selectedMissions.All(x => x.Id != id)) return;
             
@@ -91,9 +148,9 @@ public class Plugin : BasePlugin
         
         [HarmonyPatch(typeof(MissionManager), "UpdateOnChangeDate")]
         [HarmonyPostfix]
-        private static void UpdateOnChangeDate(MissionManager __instance)
+        private static void OnChangeDate(MissionManager __instance)
         {
-            Log.LogInfo("UpdateOnChangeDate");
+            if(ENABLE_DEBUG) Log.LogMessage("Function 'OnChangeDate' fired!");
 
             GenerateNewMission();
         }
@@ -104,18 +161,18 @@ public class Plugin : BasePlugin
 
             foreach (var item in orderDatas)
             {
-                if (FinalMissions.Contains(item.Id) && item.State is MissionManager.OrderState.Complete or MissionManager.OrderState.OpenShop)
+                if (FinalMissions.Contains(item.Id) &&
+                    item.State is MissionManager.OrderState.Complete or MissionManager.OrderState.OpenShop)
                 {
                     _availableMissions.Add(item);
-                    Log.LogInfo($"Mission {item.Id} added to available missions!");
+                    if(ENABLE_DEBUG) Log.LogMessage($"Mission {item.Id} added to available missions!");
                 }
             }
         }
 
         private static void GenerateNewMission()
         {
-            if (_availableMissions.Count == 0) return;
-            if (_selectedMissions.Count >= MAX_REQ_COUNT) return;
+            if (_availableMissions.Count == 0 || _selectedMissions.Count >= MAX_REQ_COUNT) return;
 
             // Get random mission from available missions
             var index = Rnd.Next(_availableMissions.Count);
@@ -123,16 +180,17 @@ public class Plugin : BasePlugin
             _availableMissions[index].State = MissionManager.OrderState.Available;
             _availableMissions.RemoveAt(index);
             
-            var request = ChooseRequest(mission.CharaId);
-            Log.LogInfo(JsonSerializer.Serialize(request, new JsonSerializerOptions() { WriteIndented = true }));
-            ApplyRequestGroup(mission, request);
+            if(ENABLE_DEBUG) Log.LogMessage($"Mission {mission.Id} selected from availableMissions!");
+            
+            ApplyRequest(mission, ChooseRequest(mission.CharaId));
             
             _selectedMissions.Add(mission);
         }
 
         private static MissionInfo ChooseRequest(uint charaId)
         {
-            var activeSpecials = ActiveSpecials();
+            if(ENABLE_DEBUG) Log.LogMessage($"Choose request for {charaId} begun!");
+            var activeSpecials = GetActiveSpecials();
             var possibleRequests = _requestGroups.Where(x =>
                     (x.Characters.Contains(0) || x.Characters.Contains(charaId)) && activeSpecials.Contains(x.Special))
                 .ToList();
@@ -198,9 +256,6 @@ public class Plugin : BasePlugin
             
             return new MissionInfo
             {
-                RequestGroupId = possibleRequests[groupIndex].Id,
-                RewardGroupId = rewardGroup.Id,
-                Category = possibleRequests[groupIndex].Category,
                 ItemId = itemIds,
                 ItemType = itemTypes,
                 ItemStack = itemStack,
@@ -208,47 +263,54 @@ public class Plugin : BasePlugin
                 RewardItemId = rewardItemId,
                 RewardItemStack = rewardItemStack,
                 RewardItemQuality = rewardItemQuality,
-                Special = possibleRequests[groupIndex].Special,
                 MissionName = possibleRequests[groupIndex].MissionName,
+                MissionCondition = possibleRequests[groupIndex].MissionCondition,
                 MissionCaption = possibleRequests[groupIndex].MissionCaption,
-                MissionDescription = possibleRequests[groupIndex].MissionDescription,
-                DebugInfo = possibleRequests[groupIndex].DebugInfo
             };
         }
         
-        private static HashSet<Special> ActiveSpecials()
+        private static HashSet<Special> GetActiveSpecials()
         {
+            if(ENABLE_DEBUG) Log.LogMessage($"Get active specials has begun!");
             var today = (DateManager.Instance.Now).AddDays(1);  // Function is called before the true date is change so add day
             var active = new HashSet<Special>() { Special.None };
             
             var fests = FestivalExecutor.Instance.m_Festivals;
             var likeManager = LikeabilityManager.Instance;
-            
+
             // Season Checks
-            if (today.Season is BokuMonoSeason.Winter && (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year + 1, 1, 1)) is < 5 and >= 0))
-                active.Add(Special.Spring);
-            
-            if (today.Season is BokuMonoSeason.Spring && (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 1, 31)) >= 5))
-                active.Add(Special.Spring);
-            
-            if (today.Season is BokuMonoSeason.Spring && (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 2, 1)) is < 5 and >= 0))
-                active.Add(Special.Summer);
-            
-            if (today.Season is BokuMonoSeason.Summer && (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 2, 31)) is >= 5))
-                active.Add(Special.Summer);
-            
-            if (today.Season is BokuMonoSeason.Summer && (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 3, 1)) is < 5 and >= 0))
-                active.Add(Special.Autumn);
-            
-            if (today.Season is BokuMonoSeason.Autumn && (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 3, 31)) is >= 5))
-                active.Add(Special.Autumn);
-                    
-            if (today.Season is BokuMonoSeason.Autumn && (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 4, 1)) is < 5 and >= 0))
-                active.Add(Special.Winter);
-            
-            if (today.Season is BokuMonoSeason.Winter && (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 4, 31)) is >= 5))
-                active.Add(Special.Winter);
-            
+            switch (today.Season)
+            {
+                case BokuMonoSeason.Winter when (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year + 1, 1, 1)) is < 7 and >= 0):
+                case BokuMonoSeason.Spring when (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 1, 31)) >= 7):
+                    active.Add(Special.Spring);
+                    break;
+            }
+
+            switch (today.Season)
+            {
+                case BokuMonoSeason.Spring when (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 2, 1)) is < 7 and >= 0):
+                case BokuMonoSeason.Summer when (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 2, 31)) is >= 7):
+                    active.Add(Special.Summer);
+                    break;
+            }
+
+            switch (today.Season)
+            {
+                case BokuMonoSeason.Summer when (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 3, 1)) is < 7 and >= 0):
+                case BokuMonoSeason.Autumn when (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 3, 31)) is >= 7):
+                    active.Add(Special.Autumn);
+                    break;
+            }
+
+            switch (today.Season)
+            {
+                case BokuMonoSeason.Autumn when (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 4, 1)) is < 7 and >= 0):
+                case BokuMonoSeason.Winter when (BokuMonoDateTimeUtility.GetElapsedDays(today, new BokuMonoDateTime(today.Year, 4, 31)) is >= 7):
+                    active.Add(Special.Winter);
+                    break;
+            }
+
             // Festival Checks
             var flowerFest = fests[FestivalExecutor.FestivalCategory.Flower].Schedule.GetOpenDate();
             if (BokuMonoDateTimeUtility.GetElapsedDays(today, flowerFest) is < 7 and >= 0)
@@ -505,8 +567,14 @@ public class Plugin : BasePlugin
             return active;
         }
         
-        private static void ApplyRequestGroup(ResidentMissionMasterData mission, MissionInfo request)
-        { 
+        private static void ApplyRequest(ResidentMissionMasterData mission, MissionInfo request)
+        {
+            if (ENABLE_DEBUG)
+            {
+                Log.LogMessage($"Apply Request has begun!");
+                Log.LogMessage($"MissionId: {mission.Id}");
+                Log.LogMessage($"Request Information:\n{JsonSerializer.Serialize(request, new JsonSerializerOptions { WriteIndented = true })}");
+            }
             // TODO: Dynamic quality determination
             
             // Set rewards
@@ -541,6 +609,15 @@ public class Plugin : BasePlugin
             mission.CompleteSubCondition = 0;
             mission.CompleteSubConditionParam = 0;
             mission.CompleteValue = 0;
+            
+            // Set Text
+            var langMan = LanguageManager.Instance;
+            langMan.GetLocalizeTextData(LocalizeTextTableType.MissionNameText, mission.NameId).Text =
+                request.MissionName;
+            langMan.GetLocalizeTextData(LocalizeTextTableType.MissionConditionsText, mission.ConditionsTextId).Text =
+                request.MissionCondition;
+            langMan.GetLocalizeTextData(LocalizeTextTableType.MissionCaptionText, mission.CaptionId).Text =
+                request.MissionCaption;
         }
     }
     
@@ -619,13 +696,135 @@ public class Plugin : BasePlugin
         }
     }
 
-    private static class jsonHandler
+    private static class TextFormatter // AI CLASS BEWARE
     {
-        public static void Write()
+        public static string DistributeText(string input, int maxLineLength)
         {
-            //string jsonPath = Path.Combine(Paths.PluginPath, "Test1.json");
-            //string json = JsonSerializer.Serialize(toot);
-            //File.WriteAllText(jsonPath, json);
+            if (string.IsNullOrEmpty(input))
+                return input;
+
+            // Remove any existing newlines and normalize whitespace
+            input = input.Replace("\n", " ").Replace("\r", " ").Trim();
+
+            // If the entire input fits within maxLineLength, return as is
+            if (input.Length <= maxLineLength)
+                return input;
+
+            var words = input.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+            // If there's only one word, return as is
+            if (words.Length <= 1)
+                return input;
+
+            var lines = new List<string>();
+            var currentLine = new List<string>();
+            var currentLineLength = 0;
+
+            // First pass: group words into lines that don't exceed maxLineLength
+            foreach (var word in words)
+            {
+                var potentialLength = currentLineLength + word.Length + (currentLine.Count > 0 ? 1 : 0);
+
+                if (potentialLength > maxLineLength && currentLine.Count > 0)
+                {
+                    lines.Add(string.Join(" ", currentLine));
+                    currentLine.Clear();
+                    currentLineLength = 0;
+                }
+
+                currentLine.Add(word);
+                currentLineLength += word.Length + (currentLine.Count > 1 ? 1 : 0);
+            }
+
+            // Add the last line
+            if (currentLine.Count > 0)
+            {
+                lines.Add(string.Join(" ", currentLine));
+            }
+
+            // If we only have 1 or 2 lines, no need to redistribute
+            if (lines.Count <= 2)
+                return string.Join("\n", lines);
+
+            // Calculate target character count for all lines except the last
+            var totalCharacters = lines.Sum(line => line.Length);
+            var charactersWithoutLastLine = totalCharacters - lines[lines.Count - 1].Length;
+            var linesWithoutLast = lines.Count - 1;
+
+            var targetCharsPerLine = (int)Math.Ceiling((double)charactersWithoutLastLine / linesWithoutLast);
+
+            // Redistribute words to make line lengths more equal (except for last line)
+            return RedistributeWordsEvenly(words, maxLineLength, targetCharsPerLine, linesWithoutLast);
+        }
+
+        private static string RedistributeWordsEvenly(string[] words, int maxLineLength, int targetCharsPerLine,
+            int targetLineCount)
+        {
+            var resultLines = new List<string>();
+            var currentLine = new List<string>();
+            var currentLineLength = 0;
+
+            for (var i = 0; i < words.Length; i++)
+            {
+                var word = words[i];
+                var wordLengthWithSpace = word.Length + (currentLine.Count > 0 ? 1 : 0);
+
+                // Check if we should start a new line
+                var shouldBreak = false;
+
+                if (currentLine.Count > 0)
+                {
+                    // If adding this word would exceed max length, break
+                    if (currentLineLength + wordLengthWithSpace > maxLineLength)
+                    {
+                        shouldBreak = true;
+                    }
+                    // If we haven't reached our target line count yet and current line is close to target length
+                    else if (resultLines.Count < targetLineCount &&
+                             currentLineLength >= targetCharsPerLine - 5) // Allow some flexibility
+                    {
+                        shouldBreak = true;
+                    }
+                }
+
+                if (shouldBreak && currentLine.Count > 0)
+                {
+                    resultLines.Add(string.Join(" ", currentLine));
+                    currentLine.Clear();
+                    currentLineLength = 0;
+                }
+
+                // Add the word to current line
+                currentLine.Add(word);
+                currentLineLength += wordLengthWithSpace;
+
+                // If this is the last word, add the final line
+                if (i == words.Length - 1)
+                {
+                    resultLines.Add(string.Join(" ", currentLine));
+                }
+            }
+
+            return string.Join("\n", resultLines);
+        }
+    }
+
+    private static class JsonHandler
+    {
+        public static bool Write(string jsonPath, List<MissionInfo> missionData)
+        {
+            var json = JsonSerializer.Serialize(missionData, new JsonSerializerOptions { WriteIndented = true });
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(jsonPath));
+                File.WriteAllText(jsonPath, json);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public static T Read<T>(string jsonPath) where T : class
@@ -636,11 +835,10 @@ public class Plugin : BasePlugin
         }
     }
 
+    
     private class MissionInfo
     {
-        public uint RequestGroupId { get; set; }
-        public uint RewardGroupId { get; set; }
-        public RequestCategory Category { get; set; }
+        public uint? MissionId { get; set; }
         public List<uint> ItemId { get; set; }
         public List<RequiredItemType> ItemType { get; set; }
         public List<int> ItemStack { get; set; }
@@ -648,11 +846,9 @@ public class Plugin : BasePlugin
         public uint RewardItemId { get; set; }
         public int RewardItemStack { get; set; }
         public int RewardItemQuality { get; set; }
-        public Special Special {get; set;}
         public string MissionName { get; set; }
+        public string MissionCondition { get; set; }
         public string MissionCaption { get; set; }
-        public string MissionDescription { get; set; }
-        public string DebugInfo { get; set; }
     }
     
     private class RequestGroups
@@ -663,8 +859,8 @@ public class Plugin : BasePlugin
         public Special Special {get; set;}
         public List<uint> Characters { get; set; }
         public string MissionName { get; set; }
+        public string MissionCondition { get; set; }
         public string MissionCaption { get; set; }
-        public string MissionDescription { get; set; }
         public string DebugInfo { get; set; }
     }
 
