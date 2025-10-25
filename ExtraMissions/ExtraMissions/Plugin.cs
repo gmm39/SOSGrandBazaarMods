@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using BepInEx;
+using BepInEx.Configuration;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
 using BokuMono;
@@ -22,10 +23,34 @@ namespace ExtraMissions;
 public class Plugin : BasePlugin
 {
     internal static new ManualLogSource Log;
+    private static ConfigEntry<float> _chanceMissionRoll;
+    private static ConfigEntry<float> _dynamRewardMulti;
+    private static ConfigEntry<int> _friendshipReward;
+    private static ConfigEntry<float> _difStackMulti;
+    private static ConfigEntry<int> _difQualityAdd;
+    private static ConfigEntry<bool> _debugLogging;
 
     public override void Load()
     {
         // Plugin startup logic
+        _chanceMissionRoll =  Config.Bind("-----01 General-----", "Chance_For_Mission_Selection", 0.5f,
+            "Every morning if there are missions available to be selected to become random missions, " +
+            "this is the chance for a mission to be selected.\n" + "Set between 0.0 and 1.0. Represents a percentage chance (e.g. 0.5 is 50% chance)");
+        _dynamRewardMulti =  Config.Bind("-----01 General-----", "Dynamic_Reward_Multiplier", 0.5f,
+            "Used to tune the dynamic function used to determine the number of reward items to give. " +
+            "Only affects rewards that use this dynamic calculation");
+        _friendshipReward =  Config.Bind("-----01 General-----", "Friendship_Points_Reward", 2000,
+            "The number of friendship points a character gains upon completing a request");
+        _difStackMulti =  Config.Bind("-----02 Difficulty-----", "Difficulty_Stack_Multiplier", 1.5f,
+            "A mission has a chance to become a difficult mission. This means, the number of items you turn in " +
+            "and the amount of reward items you get is multiplied by the given number.");
+        _difQualityAdd =  Config.Bind("-----02 Difficulty-----", "Difficulty_Quality_Increase", 2,
+            "A mission has a chance to become a difficult mission. This means, the quality of items you turn in " +
+            "and the amount of reward items you get is increased by the given amount.\n" +
+            "Every point added is 0.5 stars increased on quality.");
+        _debugLogging =  Config.Bind("-----99 DEBUG-----", "Enable_Debug_Logging", false,
+            "Enable debug logging.");
+        
         Log = base.Log;
         Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
@@ -46,8 +71,7 @@ public class Plugin : BasePlugin
         private static List<MissionManager.OrderData> _availableMissions;
         private static List<ResidentMissionMasterData> _selectedMissions;
 
-        private const int MAX_REQ_COUNT = 3;
-        private const bool ENABLE_DEBUG = true;
+        private static int MAX_REQ_COUNT = 3;
 
 
         static TestPatch()
@@ -76,14 +100,13 @@ public class Plugin : BasePlugin
 
             if (_requestGroups is null || _rewardGroups is null)
                 Log.LogError("RequestGroups or RewardGroups are invalid!");
-            else if (ENABLE_DEBUG) Log.LogMessage("Data files loaded!");
+            else if (_debugLogging.Value) Log.LogMessage("LoadDataFiles: Data files loaded!");
         }
 
         [HarmonyPatch(typeof(SaveDataManager), "SlotSaveAsync")]
         [HarmonyPostfix]
         private static void OnGameSave(int slot)
         {
-            Log.LogInfo("OnGameSave");
             var langMan = LanguageManager.Instance;
             var toSave = _selectedMissions.Select(mission => new MissionInfo
             {
@@ -103,11 +126,16 @@ public class Plugin : BasePlugin
                     langMan.GetLocalizeText(LocalizeTextTableType.MissionCaptionText, mission.CaptionId).Replace("\n", " "),
             }).ToList();
 
-            foreach (var mission in toSave) Log.LogInfo($"Saving mission {mission.MissionId}");
+            if (_debugLogging.Value)
+            {
+                var result = toSave.Aggregate("OnGameSave:\n", (current, info) => current + $"Saving mission {info.MissionId}\n");
+                Log.LogMessage(result.TrimEnd());
+            }
 
             var success = JsonHandler.Write(SavePathBase + $"Save{slot}.json", toSave);
 
-            if (ENABLE_DEBUG) Log.LogMessage($"Save to slot {slot} " + (success ? "successful!" : "failed!"));
+            if (_debugLogging.Value)
+                Log.LogMessage($"OnGameSave: Save to slot {slot} " + (success ? "successful!" : "failed!"));
         }
 
         [HarmonyPatch(typeof(UserInfoMediator), "ApplyFromUserInfo")]
@@ -131,10 +159,11 @@ public class Plugin : BasePlugin
                     _selectedMissions.Add(missionData);
                 }
 
-                if (ENABLE_DEBUG) Log.LogMessage($"Load from slot {SaveDataManager.Instance.LoadSlot} successful!");
+                if (_debugLogging.Value)
+                    Log.LogMessage($"OnGameLoad: Load from slot {SaveDataManager.Instance.LoadSlot} successful!");
             }
-            else if (ENABLE_DEBUG)
-                Log.LogMessage($"Save{SaveDataManager.Instance.LoadSlot} does not exist or failed to load!");
+            else if (_debugLogging.Value)
+                Log.LogMessage($"OnGameLoad: Save{SaveDataManager.Instance.LoadSlot} does not exist or failed to load!");
 
             Quality.UpdateQuality();
             RefreshAvailableMissions(missionManager.OrderDatas);
@@ -144,7 +173,7 @@ public class Plugin : BasePlugin
         [HarmonyPostfix]
         private static void OnMissionComplete(MissionManager __instance, uint id)
         {
-            if (ENABLE_DEBUG) Log.LogMessage("Function 'OnMissionComplete' fired!");
+            if (_debugLogging.Value) Log.LogMessage("OnMissionComplete: Function fired!");
 
             if (_selectedMissions.All(x => x.Id != id)) return;
 
@@ -156,7 +185,7 @@ public class Plugin : BasePlugin
         [HarmonyPostfix]
         private static void OnChangeDate()
         {
-            if (ENABLE_DEBUG) Log.LogMessage("Function 'OnChangeDate' fired!");
+            if (_debugLogging.Value) Log.LogMessage("OnChangeDate: Function fired!");
 
             Quality.UpdateQuality();
             GenerateNewMission();
@@ -173,7 +202,8 @@ public class Plugin : BasePlugin
                     item.State is MissionManager.OrderState.Complete or MissionManager.OrderState.OpenShop)
                 {
                     _availableMissions.Add(item);
-                    if (ENABLE_DEBUG) Log.LogMessage($"Mission {item.Id} added to available missions!");
+                    if (_debugLogging.Value)
+                        Log.LogMessage($"RefreshAvailableMissions: Mission {item.Id} added to available missions!");
                 }
             }
         }
@@ -181,14 +211,21 @@ public class Plugin : BasePlugin
         private static void GenerateNewMission()
         {
             if (_availableMissions.Count == 0 || _selectedMissions.Count >= MAX_REQ_COUNT) return;
-
+            if (!(_chanceMissionRoll.Value > Rnd.NextDouble()))
+            {
+                if(_debugLogging.Value)
+                    Log.LogMessage("GenerateNewMission: Roll to generate mission failed. No mission generated today.");
+                return;
+            }
+                
             // Get random mission from available missions
             var index = Rnd.Next(_availableMissions.Count);
             var mission = _availableMissions[index].MissionData;
             _availableMissions[index].State = MissionManager.OrderState.Available;
             _availableMissions.RemoveAt(index);
 
-            if (ENABLE_DEBUG) Log.LogMessage($"Mission {mission.Id} selected from availableMissions!");
+            if (_debugLogging.Value)
+                Log.LogMessage($"GenerateNewMission: Mission {mission.Id} selected from availableMissions!");
 
             ApplyRequest(mission, ChooseRequest(mission.CharaId));
 
@@ -197,7 +234,7 @@ public class Plugin : BasePlugin
 
         private static MissionInfo ChooseRequest(uint charaId)
         {
-            if (ENABLE_DEBUG) Log.LogMessage($"Choose request for {charaId} begun!");
+            if (_debugLogging.Value) Log.LogMessage($"ChooseRequest: Choose request for {charaId} begun!");
             var activeSpecials = GetActiveSpecials();
             var possibleRequests = _requestGroups.Where(x =>
                     (x.Characters.Contains(0) || x.Characters.Contains(charaId)) && activeSpecials.Contains(x.Special))
@@ -247,11 +284,13 @@ public class Plugin : BasePlugin
             }
 
             // Calculate reward
-            var rewardGroup = _rewardGroups.Find(x => x.Category == possibleRequests[groupIndex].Category);
+            var rewardGroup = _rewardGroups.Find(x => x.Category == tempItemList.Category);
             var rewardItemIndex = Rnd.Next(rewardGroup.ItemIds.Count);
 
             var rewardItemId = rewardGroup.ItemIds[rewardItemIndex];
-            var rewardItemStack = rewardGroup.ItemStack[rewardItemIndex];
+            var rewardItemStack = rewardGroup.ItemStack[rewardItemIndex] == -2
+                ? GetRewardQuantity(rewardItemId, itemIds, itemTypes, itemStack)
+                : rewardGroup.ItemStack[rewardItemIndex];
             var rewardItemQuality = rewardGroup.ItemQuality[rewardItemIndex] == -2
                 ? Quality.GetQuality(rewardItemId, RequiredItemType.Item)
                 : rewardGroup.ItemQuality[rewardItemIndex];
@@ -262,13 +301,13 @@ public class Plugin : BasePlugin
                 for (var i = 0; i < itemIds.Count; i++)
                 {
                     if (itemStack[i] != 0)
-                        itemStack[i] = (int)Math.Round(itemStack[i] * 2.0f);
+                        itemStack[i] = (int)Math.Round(itemStack[i] * _difStackMulti.Value);
                     if (itemQuality[i] > 0)
-                        itemQuality[i] = Math.Clamp(itemQuality[i] + 2, 1, 14);
+                        itemQuality[i] = Math.Clamp(itemQuality[i] + _difQualityAdd.Value, 1, 14);
                 }
 
-                rewardItemStack = (int)Math.Round(rewardItemStack * 2.0f);
-                rewardItemQuality = Math.Clamp(rewardItemQuality + 2, 1, 14);
+                rewardItemStack = (int)Math.Round(rewardItemStack * _difStackMulti.Value);
+                rewardItemQuality = Math.Clamp(rewardItemQuality + _difQualityAdd.Value, 1, 14);
             }
 
             return new MissionInfo
@@ -288,7 +327,7 @@ public class Plugin : BasePlugin
 
         private static HashSet<Special> GetActiveSpecials()
         {
-            if (ENABLE_DEBUG) Log.LogMessage($"Get active specials has begun!");
+            if (_debugLogging.Value) Log.LogMessage($"GetActiveSpecials: Get active specials has begun!");
             var today = (DateManager.Instance.Now)
                 .AddDays(1); // Function is called before the true date is change so add day
             var active = new HashSet<Special>() { Special.None };
@@ -599,14 +638,95 @@ public class Plugin : BasePlugin
 
             return active;
         }
+        
+        private static int GetRewardQuantity(uint rewardItem, List<uint> itemIds, List<RequiredItemType> itemTypes, List<int> itemStack)
+        {
+            var itemMaster = MasterDataManager.Instance.ItemMaster;
+            var rewardData = MasterDataManager.Instance.ItemMaster.GetData(rewardItem);
+            var recyclable = new Dictionary<uint, int>
+            {
+                {115000, 200},
+                {115001, 400},
+                {115002, 1200},
+                {115003, 300},
+                {115004, 600},
+                {115005, 7777},
+                {115006, 7777},
+                {115007, 7777},
+                {115008, 7777},
+                {115009, 7777},
+                {115010, 7777},
+                {115011, 7777},
+                {115012, 100},
+                {115013, 2000}
+            };
+            
+            var totalPrice = 0;
+
+            for (var i = 0; i < itemIds.Count(x => x != 0); i++)
+            {
+                switch (itemTypes[i])
+                {
+                    case RequiredItemType.Item:
+                        if (recyclable.ContainsKey(itemIds[i]))
+                        {
+                            totalPrice += recyclable[itemIds[i]] * itemStack[i];
+                        }
+                        else
+                        {
+                            totalPrice += itemMaster.GetData(itemIds[i]).Price * itemStack[i];
+                        }
+                        break;
+                    case RequiredItemType.Category:
+                    {
+                        var lowPrice = int.MaxValue;
+                        var highPrice = 0;
+                        
+                        foreach (var item in itemMaster.GetItemListByItemCategory((ItemCategory)itemIds[i]))
+                        {
+                            var price = recyclable.TryGetValue(item.Id, out var value) ? value : itemMaster.GetData(item.Id).Price;
+                            
+                            if(price < lowPrice) lowPrice = price;
+                            if(price > highPrice) highPrice = price;
+                        }
+                        
+                        totalPrice += ((lowPrice + highPrice) / 2) * itemStack[i];
+                        break;
+                    }
+                        
+                    case RequiredItemType.Group:
+                    {
+                        var lowPrice = int.MaxValue;
+                        var highPrice = 0;
+                        
+                        var itemList = Il2CppHelper.ToSystemList(MasterDataManager.Instance.MissionstuffGroupMaster.GetData(itemIds[i]).RequiredItemIdList);
+                        
+                        foreach (var item in itemList.Where(x => x != 0))
+                        {
+                            var price = recyclable.TryGetValue(item, out var value) ? value : itemMaster.GetData(item).Price;
+                            
+                            if(price < lowPrice) lowPrice = price;
+                            if(price > highPrice) highPrice = price;
+                        }
+                        
+                        totalPrice += ((lowPrice + highPrice) / 2) * itemStack[i];
+                        break;
+                    }
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
+            
+            return Math.Clamp((int)Math.Ceiling((totalPrice / (float)rewardData.Price) * _dynamRewardMulti.Value),
+                1, int.MaxValue);
+        }
 
         private static void ApplyRequest(ResidentMissionMasterData mission, MissionInfo request)
         {
-            if (ENABLE_DEBUG)
+            if (_debugLogging.Value)
             {
-                Log.LogMessage($"Apply Request has begun!");
-                Log.LogMessage($"MissionId: {mission.Id}");
-                Log.LogMessage($"Request Information:\n{JsonSerializer.Serialize(request, new JsonSerializerOptions { WriteIndented = true })}");
+                Log.LogMessage("ApplyRequest:\n" + $"MissionId: {mission.Id}\n" + $"Request Information:\n" +
+                               $"{JsonSerializer.Serialize(request, new JsonSerializerOptions { WriteIndented = true })}");
             }
 
             // Set rewards
@@ -641,15 +761,21 @@ public class Plugin : BasePlugin
             mission.CompleteSubCondition = 0;
             mission.CompleteSubConditionParam = 0;
             mission.CompleteValue = 0;
+            
+            // Set Friendship/Likeability reward
+            mission.RewardLikeability = _friendshipReward.Value;
 
             // Set Text
             var langMan = LanguageManager.Instance;
             langMan.GetLocalizeTextData(LocalizeTextTableType.MissionNameText, mission.NameId).Text =
-                request.MissionName;
+                TextFormatter.FormatName(request.MissionName, 
+                    langMan.GetLocalizeTextData(LocalizeTextTableType.CharacterNameText, mission.CharaId).Text);
             langMan.GetLocalizeTextData(LocalizeTextTableType.MissionConditionsText, mission.ConditionsTextId).Text =
-                request.MissionCondition;
+                TextFormatter.FormatName(request.MissionCondition, 
+                    langMan.GetLocalizeTextData(LocalizeTextTableType.CharacterNameText, mission.CharaId).Text);
             langMan.GetLocalizeTextData(LocalizeTextTableType.MissionCaptionText, mission.CaptionId).Text =
-                request.MissionCaption;
+                TextFormatter.FormatName(request.MissionCaption, 
+                    langMan.GetLocalizeTextData(LocalizeTextTableType.CharacterNameText, mission.CharaId).Text);
         }
     }
 
@@ -695,6 +821,16 @@ public class Plugin : BasePlugin
             QualityDict[QualityType.Honey] = honeyQuality;
             QualityDict[QualityType.Mushroom] = mushroomQuality;
             QualityDict[QualityType.Bug] = bugQuality;
+
+            if (_debugLogging.Value)
+            {
+                var output = "UpdateQuality:\n";
+                foreach (var (key, value) in QualityDict)
+                {
+                    output += $"{key,-8}: {value,-2} | {(value / 2),-3:F1} stars\n";
+                }
+                Log.LogMessage(output.TrimEnd());
+            }
         }
 
         public static int GetQuality(uint itemId, RequiredItemType type)
@@ -909,6 +1045,7 @@ public class Plugin : BasePlugin
 
         private static (int milkQuality, int clipQuality, int eggQuality) GetAnimalProductQuality()
         {
+            var qSetting = SettingAssetManager.Instance.QualitySetting;
             var farmAnimals = Il2CppHelper
                 .ToSystemList(
                     new Il2CppSystem.Collections.Generic.List<AnimalParemeterBase>(AnimalManager.Instance.AllAnimalParams))
@@ -917,7 +1054,7 @@ public class Plugin : BasePlugin
             var milkQuality = 0;
             var clipQuality = 0;
             var eggQuality = 0;
-
+            
             foreach (var animal in farmAnimals)
             {
                 switch (animal.GetProductType())
@@ -925,18 +1062,18 @@ public class Plugin : BasePlugin
                     case FarmAnimalParameter.ProductType.None:
                         break;
                     case FarmAnimalParameter.ProductType.Milk:
-                        milkQuality = animal.GetQualityValue() > milkQuality
-                            ? animal.GetQualityValue()
+                        milkQuality = qSetting.GetQuality(animal.GetQualityValue()) > milkQuality
+                            ? qSetting.GetQuality(animal.GetQualityValue())
                             : milkQuality;
                         break;
                     case FarmAnimalParameter.ProductType.Clip:
-                        clipQuality = animal.GetQualityValue() > clipQuality
-                            ? animal.GetQualityValue()
+                        clipQuality = qSetting.GetQuality(animal.GetQualityValue()) > clipQuality
+                            ? qSetting.GetQuality(animal.GetQualityValue())
                             : clipQuality;
                         break;
                     case FarmAnimalParameter.ProductType.Egg:
-                        eggQuality = animal.GetQualityValue() > eggQuality
-                            ? animal.GetQualityValue()
+                        eggQuality = qSetting.GetQuality(animal.GetQualityValue()) > eggQuality
+                            ? qSetting.GetQuality(animal.GetQualityValue())
                             : eggQuality;
                         break;
                     default:
@@ -944,7 +1081,9 @@ public class Plugin : BasePlugin
                 }
             }
 
-            return (milkQuality, clipQuality, eggQuality);
+            return (Math.Clamp(milkQuality, 1, 14), 
+                Math.Clamp(clipQuality, 1, 14), 
+                Math.Clamp(eggQuality, 1, 14));
         }
 
         private static int GetCropQuality()
@@ -1016,116 +1155,11 @@ public class Plugin : BasePlugin
         }
     }
 
-    private static class TextFormatter // AI CLASS BEWARE
+    private static class TextFormatter
     {
-        public static string DistributeText(string input, int maxLineLength)
+        public static string FormatName(string input, string charName)
         {
-            if (string.IsNullOrEmpty(input))
-                return input;
-
-            // Remove any existing newlines and normalize whitespace
-            input = input.Replace("\n", " ").Replace("\r", " ").Trim();
-
-            // If the entire input fits within maxLineLength, return as is
-            if (input.Length <= maxLineLength)
-                return input;
-
-            var words = input.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-            // If there's only one word, return as is
-            if (words.Length <= 1)
-                return input;
-
-            var lines = new List<string>();
-            var currentLine = new List<string>();
-            var currentLineLength = 0;
-
-            // First pass: group words into lines that don't exceed maxLineLength
-            foreach (var word in words)
-            {
-                var potentialLength = currentLineLength + word.Length + (currentLine.Count > 0 ? 1 : 0);
-
-                if (potentialLength > maxLineLength && currentLine.Count > 0)
-                {
-                    lines.Add(string.Join(" ", currentLine));
-                    currentLine.Clear();
-                    currentLineLength = 0;
-                }
-
-                currentLine.Add(word);
-                currentLineLength += word.Length + (currentLine.Count > 1 ? 1 : 0);
-            }
-
-            // Add the last line
-            if (currentLine.Count > 0)
-            {
-                lines.Add(string.Join(" ", currentLine));
-            }
-
-            // If we only have 1 or 2 lines, no need to redistribute
-            if (lines.Count <= 2)
-                return string.Join("\n", lines);
-
-            // Calculate target character count for all lines except the last
-            var totalCharacters = lines.Sum(line => line.Length);
-            var charactersWithoutLastLine = totalCharacters - lines[lines.Count - 1].Length;
-            var linesWithoutLast = lines.Count - 1;
-
-            var targetCharsPerLine = (int)Math.Ceiling((double)charactersWithoutLastLine / linesWithoutLast);
-
-            // Redistribute words to make line lengths more equal (except for last line)
-            return RedistributeWordsEvenly(words, maxLineLength, targetCharsPerLine, linesWithoutLast);
-        }
-
-        private static string RedistributeWordsEvenly(string[] words, int maxLineLength, int targetCharsPerLine,
-            int targetLineCount)
-        {
-            var resultLines = new List<string>();
-            var currentLine = new List<string>();
-            var currentLineLength = 0;
-
-            for (var i = 0; i < words.Length; i++)
-            {
-                var word = words[i];
-                var wordLengthWithSpace = word.Length + (currentLine.Count > 0 ? 1 : 0);
-
-                // Check if we should start a new line
-                var shouldBreak = false;
-
-                if (currentLine.Count > 0)
-                {
-                    // If adding this word would exceed max length, break
-                    if (currentLineLength + wordLengthWithSpace > maxLineLength)
-                    {
-                        shouldBreak = true;
-                    }
-                    // If we haven't reached our target line count yet and current line is close to target length
-                    else if (resultLines.Count < targetLineCount &&
-                             currentLineLength >= targetCharsPerLine - 5) // Allow some flexibility
-                    {
-                        shouldBreak = true;
-                    }
-                }
-
-                if (shouldBreak && currentLine.Count > 0)
-                {
-                    resultLines.Add(string.Join(" ", currentLine));
-                    currentLine.Clear();
-                    currentLineLength = 0;
-                }
-
-                // Add the word to current line
-                currentLine.Add(word);
-                currentLineLength += wordLengthWithSpace;
-
-                // If this is the last word, add the final line
-                if (i == words.Length - 1)
-                {
-                    resultLines.Add(string.Join(" ", currentLine));
-                }
-            }
-
-            return string.Join("\n", resultLines);
+            return input.Replace("{char}", charName);
         }
     }
 
@@ -1174,7 +1208,6 @@ public class Plugin : BasePlugin
     private class RequestGroups
     {
         public uint Id { get; set; }
-        public RequestCategory Category { get; set; }
         public List<ItemList> Items { get; set; }
         public Special Special { get; set; }
         public List<uint> Characters { get; set; }
@@ -1190,6 +1223,7 @@ public class Plugin : BasePlugin
         public List<RequiredItemType> ItemType { get; set; }
         public List<int> ItemStack { get; set; }
         public List<int> ItemQuality { get; set; }
+        public RequestCategory Category { get; set; }
         public float DifficultChance { get; set; }
         public bool PickOne { get; set; }
     }
@@ -1216,10 +1250,9 @@ public class Plugin : BasePlugin
         Gemstone,
         Gift,
         Ingredient,
-        Other,
+        Seed,
         Mineral,
-        Misc,
-        Seed
+        Misc
     }
 
     private enum Special
