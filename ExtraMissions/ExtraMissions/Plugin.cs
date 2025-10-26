@@ -36,7 +36,7 @@ public class Plugin : BasePlugin
         _chanceMissionRoll =  Config.Bind("-----01 General-----", "Chance_For_Mission_Selection", 0.5f,
             "Every morning if there are missions available to be selected to become random missions, " +
             "this is the chance for a mission to be selected.\n" + "Set between 0.0 and 1.0. Represents a percentage chance (e.g. 0.5 is 50% chance)");
-        _dynamRewardMulti =  Config.Bind("-----01 General-----", "Dynamic_Reward_Multiplier", 0.5f,
+        _dynamRewardMulti =  Config.Bind("-----01 General-----", "Dynamic_Reward_Multiplier", 1.0f,
             "Used to tune the dynamic function used to determine the number of reward items to give. " +
             "Only affects rewards that use this dynamic calculation");
         _friendshipReward =  Config.Bind("-----01 General-----", "Friendship_Points_Reward", 2000,
@@ -99,8 +99,20 @@ public class Plugin : BasePlugin
             _rewardGroups = JsonHandler.Read<List<RewardGroups>>(RewardGroupsPath);
 
             if (_requestGroups is null || _rewardGroups is null)
-                Log.LogError("RequestGroups or RewardGroups are invalid!");
+                Log.LogError("RequestGroups or RewardGroups is null!");
             else if (_debugLogging.Value) Log.LogMessage("LoadDataFiles: Data files loaded!");
+
+            var duplicateIds = JsonHandler.ValidateUniqueIds(_requestGroups);
+            if(duplicateIds.Count != 0)
+                Log.LogError($"RequestGroups contain duplicate ids: {duplicateIds.Join()}");
+
+            var nonequalLengthIds = JsonHandler.ValidateItemListLength(_requestGroups);
+            if(nonequalLengthIds.Count != 0)
+                Log.LogError($"RequestGroups contain itemLists arrays of non equal length: {nonequalLengthIds.Join()}");
+            
+            var invalidItemTypeIds = JsonHandler.ValidateItemTypes(_requestGroups);
+            if(invalidItemTypeIds.Count != 0)
+                Log.LogError($"RequestGroups contain mismatched or invalid ItemTypes: {invalidItemTypeIds.Join()}");
         }
 
         [HarmonyPatch(typeof(SaveDataManager), "SlotSaveAsync")]
@@ -668,48 +680,31 @@ public class Plugin : BasePlugin
                 switch (itemTypes[i])
                 {
                     case RequiredItemType.Item:
-                        if (recyclable.ContainsKey(itemIds[i]))
+                        if (recyclable.TryGetValue(itemIds[i], out var value))
                         {
-                            totalPrice += recyclable[itemIds[i]] * itemStack[i];
+                            totalPrice += value * itemStack[i];
                         }
                         else
                         {
                             totalPrice += itemMaster.GetData(itemIds[i]).Price * itemStack[i];
                         }
+
                         break;
                     case RequiredItemType.Category:
                     {
-                        var lowPrice = int.MaxValue;
-                        var highPrice = 0;
-                        
-                        foreach (var item in itemMaster.GetItemListByItemCategory((ItemCategory)itemIds[i]))
-                        {
-                            var price = recyclable.TryGetValue(item.Id, out var value) ? value : itemMaster.GetData(item.Id).Price;
-                            
-                            if(price < lowPrice) lowPrice = price;
-                            if(price > highPrice) highPrice = price;
-                        }
-                        
-                        totalPrice += ((lowPrice + highPrice) / 2) * itemStack[i];
+                        var itemList = Il2CppHelper.ToSystemList(itemMaster.GetItemListByItemCategory((ItemCategory)itemIds[i])).Select(x => x.Price).ToList();
+                        totalPrice = CalculateTrimmedMean(itemList, 0.15) * itemStack[i];
+                    
                         break;
                     }
-                        
+
                     case RequiredItemType.Group:
                     {
-                        var lowPrice = int.MaxValue;
-                        var highPrice = 0;
-                        
-                        var itemList = Il2CppHelper.ToSystemList(MasterDataManager.Instance.MissionstuffGroupMaster.GetData(itemIds[i]).RequiredItemIdList);
-                        
-                        foreach (var item in itemList.Where(x => x != 0))
-                        {
-                            var price = recyclable.TryGetValue(item, out var value) ? value : itemMaster.GetData(item).Price;
-                            
-                            if(price < lowPrice) lowPrice = price;
-                            if(price > highPrice) highPrice = price;
-                        }
-                        
-                        totalPrice += ((lowPrice + highPrice) / 2) * itemStack[i];
+                        var itemList = Il2CppHelper.ToSystemList(MasterDataManager.Instance.MissionstuffGroupMaster
+                            .GetData(itemIds[i]).RequiredItemIdList).Where(x => x != 0);
+                        var prices = itemList.Select(i => recyclable.TryGetValue(i, out var value) ? value : itemMaster.GetData(i).Price)
+                            .ToList();
+                        totalPrice = CalculateTrimmedMean(prices, 0.15) * itemStack[i];
                         break;
                     }
                     default:
@@ -719,6 +714,17 @@ public class Plugin : BasePlugin
             
             return Math.Clamp((int)Math.Ceiling((totalPrice / (float)rewardData.Price) * _dynamRewardMulti.Value),
                 1, int.MaxValue);
+        }
+        
+        private static int CalculateTrimmedMean(List<int> numbers, double trimPercentage)
+        {
+            if ((numbers == null || numbers.Count == 0) || (trimPercentage < 0 || trimPercentage >= 50)) return 0;
+            
+            var trimCount = (int)Math.Round(numbers.Count * trimPercentage / 100);
+
+            return trimCount * 2 >= numbers.Count
+                ? 0
+                : (int)numbers.OrderBy(x => x).Skip(trimCount).Take(numbers.Count - (2 * trimCount)).Average();
         }
 
         private static void ApplyRequest(ResidentMissionMasterData mission, MissionInfo request)
@@ -767,6 +773,8 @@ public class Plugin : BasePlugin
 
             // Set Text
             var langMan = LanguageManager.Instance;
+            if (langMan.CurrentLanguage != Language.en) return;
+            
             langMan.GetLocalizeTextData(LocalizeTextTableType.MissionNameText, mission.NameId).Text =
                 TextFormatter.FormatName(request.MissionName, 
                     langMan.GetLocalizeTextData(LocalizeTextTableType.CharacterNameText, mission.CharaId).Text);
@@ -1187,8 +1195,162 @@ public class Plugin : BasePlugin
                 ? JsonSerializer.Deserialize<T>(File.ReadAllText(jsonPath))
                 : null;
         }
+        
+        public static List<uint> ValidateItemListLength(List<RequestGroups> requestGroups)
+        {
+            return (from @group in requestGroups
+                let hasInvalidItem =
+                    @group.Items.Any(item =>
+                        item.ItemIds.Count != item.ItemType.Count || item.ItemIds.Count != item.ItemStack.Count ||
+                        item.ItemIds.Count != item.ItemQuality.Count)
+                where hasInvalidItem
+                select @group.Id).ToList();
+        }
+        
+        public static List<uint> ValidateUniqueIds(List<RequestGroups> requestGroups)
+        {
+            var seenIds = new HashSet<uint>();
+            var duplicates = new HashSet<uint>();
+    
+            foreach (var item in requestGroups.Where(item => !seenIds.Add(item.Id)))
+                duplicates.Add(item.Id);
+
+            return duplicates.ToList();
+        }
+        
+        public static List<uint> ValidateItemTypes(List<RequestGroups> requestGroups)
+        {
+            var invalidRequestGroupIds = new List<uint>();
+        
+            foreach (var requestGroup in requestGroups.Where(requestGroup => requestGroup.Items != null))
+            {
+                foreach (var itemGroup in requestGroup.Items.Where(itemGroup => itemGroup.ItemIds != null && itemGroup.ItemType != null))
+                {
+                    // Check if arrays have the same length
+                    if (itemGroup.ItemIds.Count != itemGroup.ItemType.Count)
+                    {
+                        invalidRequestGroupIds.Add(requestGroup.Id);
+                        break;
+                    }
+                
+                    // Check each ItemId against its corresponding ItemType
+                    for (var i = 0; i < itemGroup.ItemIds.Count; i++)
+                    {
+                        var itemId = itemGroup.ItemIds[i];
+                        var itemType = itemGroup.ItemType[i];
+                    
+                        var isValid = itemType switch
+                        {
+                            RequiredItemType.Item => itemId is >= 10000 and <= 999999,  // Item number
+                            RequiredItemType.Category => itemId is >= 0 and <= 999,     // Category number
+                            RequiredItemType.Group => itemId > 999999,                  // Mission group number
+                            _ => false                                                  // Invalid ItemType value
+                        };
+
+                        if (isValid) continue;
+                        invalidRequestGroupIds.Add(requestGroup.Id);
+                        break;
+                    }
+                
+                    // If we already found this request group to be invalid, move to the next one
+                    if (invalidRequestGroupIds.Contains(requestGroup.Id))
+                        break;
+                }
+            }
+        
+            return invalidRequestGroupIds.Distinct().ToList();
+        }
     }
 
+    private class Troubleshoot
+    {
+        public static void OutputPrice(List<RequestGroups> requestGroups)
+        {
+            Log.LogInfo("ItemGroupId,ItemId,Stack,Price");
+            
+            foreach (var group in requestGroups)
+            {
+                foreach (var itemGroup in group.Items)
+                {
+                    for (var j = 0; j < itemGroup.ItemIds.Count; j++)
+                    {
+                        Log.LogInfo($"{group.Id},{itemGroup.ItemIds[j]},{itemGroup.ItemStack[j]},{GetPrice(itemGroup.ItemIds[j], itemGroup.ItemType[j], itemGroup.ItemStack[j])}");
+                    }
+                }
+            }
+        }
+
+        private static int GetPrice(uint item, RequiredItemType type, int stack)
+        {
+            var itemMaster = MasterDataManager.Instance.ItemMaster;
+            var recyclable = new Dictionary<uint, int>
+            {
+                { 115000, 200 },
+                { 115001, 400 },
+                { 115002, 1200 },
+                { 115003, 300 },
+                { 115004, 600 },
+                { 115005, 7777 },
+                { 115006, 7777 },
+                { 115007, 7777 },
+                { 115008, 7777 },
+                { 115009, 7777 },
+                { 115010, 7777 },
+                { 115011, 7777 },
+                { 115012, 100 },
+                { 115013, 2000 }
+            };
+
+            var totalPrice = 0;
+            
+            switch (type)
+            {
+                case RequiredItemType.Item:
+                    if (recyclable.TryGetValue(item, out var value))
+                    {
+                        totalPrice += value * stack;
+                    }
+                    else
+                    {
+                        totalPrice += itemMaster.GetData(item).Price * stack;
+                    }
+
+                    break;
+                case RequiredItemType.Category:
+                {
+                    var itemList = Il2CppHelper.ToSystemList(itemMaster.GetItemListByItemCategory((ItemCategory)item)).Select(x => x.Price).ToList();
+                    totalPrice = CalculateTrimmedMean(itemList, 0.15) * stack;
+                    
+                    break;
+                }
+
+                case RequiredItemType.Group:
+                {
+                    var itemList = Il2CppHelper.ToSystemList(MasterDataManager.Instance.MissionstuffGroupMaster
+                        .GetData(item).RequiredItemIdList).Where(x => x != 0);
+                    var prices = itemList.Select(i => recyclable.TryGetValue(i, out var value) ? value : itemMaster.GetData(i).Price)
+                        .ToList();
+                    totalPrice = CalculateTrimmedMean(prices, 0.15) * stack;
+                    break;
+                }
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+
+            return totalPrice;
+        }
+        
+        private static int CalculateTrimmedMean(List<int> numbers, double trimPercentage)
+        {
+            if ((numbers == null || numbers.Count == 0) || (trimPercentage < 0 || trimPercentage >= 50)) return 0;
+            
+            var trimCount = (int)Math.Round(numbers.Count * trimPercentage / 100);
+
+            return trimCount * 2 >= numbers.Count
+                ? 0
+                : (int)numbers.OrderBy(x => x).Skip(trimCount).Take(numbers.Count - (2 * trimCount)).Average();
+        }
+    }
 
     private class MissionInfo
     {
