@@ -29,6 +29,7 @@ public class Plugin : BasePlugin
     private static ConfigEntry<float> _difStackMulti;
     private static ConfigEntry<int> _difQualityAdd;
     private static ConfigEntry<bool> _debugLogging;
+    private static ConfigEntry<bool> _rgPriceLog;
 
     public override void Load()
     {
@@ -50,14 +51,20 @@ public class Plugin : BasePlugin
             "Every point added is 0.5 stars increased on quality.");
         _debugLogging =  Config.Bind("-----99 DEBUG-----", "Enable_Debug_Logging", false,
             "Enable debug logging.");
+        _rgPriceLog =  Config.Bind("-----99 DEBUG-----", "RequestGroups_Price_Log", false,
+            "Outputs the total price of each item in each request group." +
+            "\nBased on item price and quantity. Quality is not considered.");
         
         Log = base.Log;
         Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
-        Harmony.CreateAndPatchAll(typeof(TestPatch));
+        Harmony.CreateAndPatchAll(typeof(DynamicMissionPatch));
     }
 
-    private static class TestPatch
+    /// <summary>
+    /// Manages the generation, application, and persistence of dynamic request missions
+    /// </summary>
+    private static class DynamicMissionPatch
     {
         private static readonly Random Rnd;
         private static readonly string RequestGroupsPath;
@@ -74,7 +81,7 @@ public class Plugin : BasePlugin
         private static int MAX_REQ_COUNT = 3;
 
 
-        static TestPatch()
+        static DynamicMissionPatch()
         {
             Rnd = new Random();
 
@@ -91,6 +98,13 @@ public class Plugin : BasePlugin
             _selectedMissions = [];
         }
 
+        /// <summary>
+        ///  Loads RequestGroups.json and RewardGroups.json data files
+        /// </summary>
+        /// <remarks>
+        /// RequestGroups is validated for unique Id values, that inner item ids, types, stacks, and quality
+        /// arrays are equal length, and that type values match Id ranges properly.
+        /// </remarks>
         [HarmonyPatch(typeof(UITitleMainPage), "PlayTitleLogoAnimation")]
         [HarmonyPostfix]
         private static void LoadDataFiles()
@@ -113,8 +127,14 @@ public class Plugin : BasePlugin
             var invalidItemTypeIds = JsonHandler.ValidateItemTypes(_requestGroups);
             if(invalidItemTypeIds.Count != 0)
                 Log.LogError($"RequestGroups contain mismatched or invalid ItemTypes: {invalidItemTypeIds.Join()}");
+
+            if (_rgPriceLog.Value) Troubleshoot.OutputPriceList(_requestGroups);
         }
 
+        /// <summary>
+        /// Saves currently generated missions to save file matching game save slot.
+        /// </summary>
+        /// <param name="slot">The slot being saved to.</param>
         [HarmonyPatch(typeof(SaveDataManager), "SlotSaveAsync")]
         [HarmonyPostfix]
         private static void OnGameSave(int slot)
@@ -150,6 +170,9 @@ public class Plugin : BasePlugin
                 Log.LogMessage($"OnGameSave: Save to slot {slot} " + (success ? "successful!" : "failed!"));
         }
 
+        /// <summary>
+        /// Attempts to load in save file matching current load slot and applies missions.
+        /// </summary>
         [HarmonyPatch(typeof(UserInfoMediator), "ApplyFromUserInfo")]
         [HarmonyPostfix]
         private static void OnGameLoad()
@@ -181,6 +204,11 @@ public class Plugin : BasePlugin
             RefreshAvailableMissions(missionManager.OrderDatas);
         }
 
+        /// <summary>
+        /// If a generated mission is completed, refreshes pool of available missions.
+        /// </summary>
+        /// <param name="__instance">Mission manager</param>
+        /// <param name="id">Id of completed mission</param>
         [HarmonyPatch(typeof(MissionManager), "MissionComplete")]
         [HarmonyPostfix]
         private static void OnMissionComplete(MissionManager __instance, uint id)
@@ -203,6 +231,10 @@ public class Plugin : BasePlugin
             GenerateNewMission();
         }
 
+        /// <summary>
+        /// Refreshes pool of available missions.
+        /// </summary>
+        /// <param name="orderDatas">List of mission data</param>
         private static void RefreshAvailableMissions(
             Il2CppSystem.Collections.Generic.List<MissionManager.OrderData> orderDatas)
         {
@@ -220,6 +252,10 @@ public class Plugin : BasePlugin
             }
         }
 
+        /// <summary>
+        /// Chooses an available mission from the pool and generates a randomized request mission if available missions
+        /// exist and concurrent cap is not met.
+        /// </summary>
         private static void GenerateNewMission()
         {
             if (_availableMissions.Count == 0 || _selectedMissions.Count >= MAX_REQ_COUNT) return;
@@ -239,12 +275,17 @@ public class Plugin : BasePlugin
             if (_debugLogging.Value)
                 Log.LogMessage($"GenerateNewMission: Mission {mission.Id} selected from availableMissions!");
 
-            ApplyRequest(mission, ChooseRequest(mission.CharaId));
+            ApplyRequest(mission, GenerateRequest(mission.CharaId));
 
             _selectedMissions.Add(mission);
         }
 
-        private static MissionInfo ChooseRequest(uint charaId)
+        /// <summary>
+        /// Generates random request mission from RequestGroups from data file.
+        /// </summary>
+        /// <param name="charaId">Character the mission is for.</param>
+        /// <returns>Generated mission details</returns>
+        private static MissionInfo GenerateRequest(uint charaId)
         {
             if (_debugLogging.Value) Log.LogMessage($"ChooseRequest: Choose request for {charaId} begun!");
             var activeSpecials = GetActiveSpecials();
@@ -337,6 +378,11 @@ public class Plugin : BasePlugin
             };
         }
 
+        /// <summary>
+        /// Generates a set of all currently active special conditions.
+        /// </summary>
+        /// <returns>Set of all currently active special conditions.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Unacceptable enum value</exception>
         private static HashSet<Special> GetActiveSpecials()
         {
             if (_debugLogging.Value) Log.LogMessage($"GetActiveSpecials: Get active specials has begun!");
@@ -651,6 +697,17 @@ public class Plugin : BasePlugin
             return active;
         }
         
+        /// <summary>
+        /// Generates quantity value for provided reward item. Based on the total value of the requested items.
+        /// For groups and categories, trimmed mean is used as base price.
+        /// For items considered recyclable, Treasureland sell price used as base price.
+        /// </summary>
+        /// <param name="rewardItem">Reward item id</param>
+        /// <param name="itemIds">Required item list</param>
+        /// <param name="itemTypes">Required item type</param>
+        /// <param name="itemStack">Required item quantity</param>
+        /// <returns>Recommended quantity of provided reward item</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Invalid RequiredItemType</exception>
         private static int GetRewardQuantity(uint rewardItem, List<uint> itemIds, List<RequiredItemType> itemTypes, List<int> itemStack)
         {
             var itemMaster = MasterDataManager.Instance.ItemMaster;
@@ -716,6 +773,12 @@ public class Plugin : BasePlugin
                 1, int.MaxValue);
         }
         
+        /// <summary>
+        /// Calculates mean of provided int list. Trims percentage of high and low values.
+        /// </summary>
+        /// <param name="numbers">List of integers for which the mean is calculated</param>
+        /// <param name="trimPercentage">Percentage of list to trim from both ends</param>
+        /// <returns>Trimmed/truncated mean</returns>
         private static int CalculateTrimmedMean(List<int> numbers, double trimPercentage)
         {
             if ((numbers == null || numbers.Count == 0) || (trimPercentage < 0 || trimPercentage >= 50)) return 0;
@@ -727,6 +790,11 @@ public class Plugin : BasePlugin
                 : (int)numbers.OrderBy(x => x).Skip(trimCount).Take(numbers.Count - (2 * trimCount)).Average();
         }
 
+        /// <summary>
+        /// Applies generated request mission to supplied mission.
+        /// </summary>
+        /// <param name="mission">Game mission to apply generated mission to</param>
+        /// <param name="request">Generated mission that will be applied to game mission</param>
         private static void ApplyRequest(ResidentMissionMasterData mission, MissionInfo request)
         {
             if (_debugLogging.Value)
@@ -787,8 +855,14 @@ public class Plugin : BasePlugin
         }
     }
 
+    /// <summary>
+    /// Handles quality determination and calculation for current game save
+    /// </summary>
     private static class Quality
     {
+        /// <summary>
+        /// Categories of quality to consider
+        /// </summary>
         private enum QualityType
         {
             Milk,
@@ -804,6 +878,9 @@ public class Plugin : BasePlugin
 
         private static Dictionary<QualityType, int> QualityDict = new();
 
+        /// <summary>
+        /// Updates quality dictionary for each QualityType category based on current save progress
+        /// </summary>
         public static void UpdateQuality()
         {
             var coroManager = CoroMissionManager.Instance;
@@ -841,6 +918,13 @@ public class Plugin : BasePlugin
             }
         }
 
+        /// <summary>
+        /// Determines the recommended quality for the provided item id
+        /// </summary>
+        /// <param name="itemId">Item for which quality will be determined</param>
+        /// <param name="type">Type of item id being used</param>
+        /// <returns>Recommended quality for the supplied item (1-14)</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Invalid ItemCategory</exception>
         public static int GetQuality(uint itemId, RequiredItemType type)
         {
             var itemCat = ItemCategory.None;
@@ -1051,6 +1135,12 @@ public class Plugin : BasePlugin
             return quality;
         }
 
+        /// <summary>
+        /// Determines quality of animal products for the current save. References the product quality of the best animal 
+        /// the player has for each category.
+        /// </summary>
+        /// <returns>Quality of milk, wool, and eggs for current save</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Invalid ProductType</exception>
         private static (int milkQuality, int clipQuality, int eggQuality) GetAnimalProductQuality()
         {
             var qSetting = SettingAssetManager.Instance.QualitySetting;
@@ -1094,6 +1184,10 @@ public class Plugin : BasePlugin
                 Math.Clamp(eggQuality, 1, 14));
         }
 
+        /// <summary>
+        /// Determines crop quality for the current save. Based on crop show wins and soil level.
+        /// </summary>
+        /// <returns>Crop quality for current save</returns>
         private static int GetCropQuality()
         {
             var soilLevel = ExpansionManager.Instance.RidgeLevel;
@@ -1134,10 +1228,18 @@ public class Plugin : BasePlugin
                 (soilLevel * 1) + (Math.Floor(bronzeTot * 0.5) * 1) + (silverTot * 1) + (goldTot * 2), 1, 14);
         }
     }
-
-
+    
+    /// <summary>
+    /// Helper functions for converting to and from Il2Cpp objects and System objects
+    /// </summary>
     private static class Il2CppHelper
     {
+        /// <summary>
+        /// Converts System List to Il2Cpp List
+        /// </summary>
+        /// <param name="list">System List</param>
+        /// <typeparam name="T">Type of elements in list</typeparam>
+        /// <returns>Il2Cpp list</returns>
         public static Il2CppSystem.Collections.Generic.List<T> ToIl2CppList<T>(List<T> list)
         {
             var Il2CppList = new Il2CppSystem.Collections.Generic.List<T>();
@@ -1150,6 +1252,12 @@ public class Plugin : BasePlugin
             return Il2CppList;
         }
 
+        /// <summary>
+        /// Converts Il2Cpp List to System List
+        /// </summary>
+        /// <param name="list">Il2Cpp list</param>
+        /// <typeparam name="T">Type of elements in list</typeparam>
+        /// <returns>System list</returns>
         public static List<T> ToSystemList<T>(Il2CppSystem.Collections.Generic.List<T> list)
         {
             var SystemList = new List<T>();
@@ -1163,16 +1271,34 @@ public class Plugin : BasePlugin
         }
     }
 
+    /// <summary>
+    /// Helper functions for text replacements
+    /// </summary>
     private static class TextFormatter
     {
+        /// <summary>
+        /// Replaces instances of {char} with the proper character's name
+        /// </summary>
+        /// <param name="input">String with placeholder elements</param>
+        /// <param name="charName">Name of the character to replace {char}</param>
+        /// <returns>Input string with replacements made</returns>
         public static string FormatName(string input, string charName)
         {
             return input.Replace("{char}", charName);
         }
     }
 
+    /// <summary>
+    /// Handles reading, writing, and validation of json files
+    /// </summary>
     private static class JsonHandler
     {
+        /// <summary>
+        /// Writes supplied missionData to file. Used in saving mission information
+        /// </summary>
+        /// <param name="jsonPath">Path of json file</param>
+        /// <param name="missionData">Data to be written to json file</param>
+        /// <returns>Writing success</returns>
         public static bool Write(string jsonPath, List<MissionInfo> missionData)
         {
             var json = JsonSerializer.Serialize(missionData, new JsonSerializerOptions { WriteIndented = true });
@@ -1189,6 +1315,12 @@ public class Plugin : BasePlugin
             }
         }
 
+        /// <summary>
+        /// Reads in json file
+        /// </summary>
+        /// <param name="jsonPath">Path of json file</param>
+        /// <typeparam name="T">Type of object json file deserialized as</typeparam>
+        /// <returns>Deserialized json object</returns>
         public static T Read<T>(string jsonPath) where T : class
         {
             return File.Exists(jsonPath)
@@ -1196,6 +1328,12 @@ public class Plugin : BasePlugin
                 : null;
         }
         
+        /// <summary>
+        /// Confirms that each instance of ItemList contains lists for ItemIds, ItemType, ItemStack, and ItemQuality
+        /// of all matching length.
+        /// </summary>
+        /// <param name="requestGroups">Request groups to be validated</param>
+        /// <returns>List of all RequestGroup Ids that do not pass validation test</returns>
         public static List<uint> ValidateItemListLength(List<RequestGroups> requestGroups)
         {
             return (from @group in requestGroups
@@ -1207,6 +1345,11 @@ public class Plugin : BasePlugin
                 select @group.Id).ToList();
         }
         
+        /// <summary>
+        /// Validates that all RequestGroups have a unique Id value
+        /// </summary>
+        /// <param name="requestGroups">Request groups to be validated</param>
+        /// <returns>List of all RequestGroup Ids that do not pass validation test</returns>
         public static List<uint> ValidateUniqueIds(List<RequestGroups> requestGroups)
         {
             var seenIds = new HashSet<uint>();
@@ -1218,6 +1361,11 @@ public class Plugin : BasePlugin
             return duplicates.ToList();
         }
         
+        /// <summary>
+        /// Validates that all ItemTypes correspond properly to the ItemIds they represent. Based on Id numeric range.
+        /// </summary>
+        /// <param name="requestGroups">Request groups to be validated</param>
+        /// <returns>List of all RequestGroup Ids that do not pass validation test</returns>
         public static List<uint> ValidateItemTypes(List<RequestGroups> requestGroups)
         {
             var invalidRequestGroupIds = new List<uint>();
@@ -1262,9 +1410,17 @@ public class Plugin : BasePlugin
         }
     }
 
+    /// <summary>
+    /// Functions useful in troubleshooting or otherwise generating data useful for development
+    /// </summary>
     private class Troubleshoot
     {
-        public static void OutputPrice(List<RequestGroups> requestGroups)
+        /// <summary>
+        /// Outputs csv style price list of every item in supplied list of RequestGroups. Based on base item price and quantity.
+        /// Does not consider item quality.
+        /// </summary>
+        /// <param name="requestGroups">RequestGroups for which item prices will be printed</param>
+        public static void OutputPriceList(List<RequestGroups> requestGroups)
         {
             Log.LogInfo("ItemGroupId,ItemId,Stack,Price");
             
@@ -1280,6 +1436,16 @@ public class Plugin : BasePlugin
             }
         }
 
+        /// <summary>
+        /// Gets price of supplied item. Based on base price and quantity.
+        /// For groups and categories, trimmed mean is used as base price.
+        /// For items considered recyclable, Treasureland sell price used as base price.
+        /// </summary>
+        /// <param name="item">Item for which price is determined</param>
+        /// <param name="type">Type of item id supplied</param>
+        /// <param name="stack">Quantity of item</param>
+        /// <returns>Item price</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Invalid RequiredItemType</exception>
         private static int GetPrice(uint item, RequiredItemType type, int stack)
         {
             var itemMaster = MasterDataManager.Instance.ItemMaster;
@@ -1340,6 +1506,12 @@ public class Plugin : BasePlugin
             return totalPrice;
         }
         
+        /// <summary>
+        /// Calculates mean of provided int list. Trims percentage of high and low values.
+        /// </summary>
+        /// <param name="numbers">List of integers for which the mean is calculated</param>
+        /// <param name="trimPercentage">Percentage of list to trim from both ends</param>
+        /// <returns>Trimmed/truncated mean</returns>
         private static int CalculateTrimmedMean(List<int> numbers, double trimPercentage)
         {
             if ((numbers == null || numbers.Count == 0) || (trimPercentage < 0 || trimPercentage >= 50)) return 0;
@@ -1352,6 +1524,9 @@ public class Plugin : BasePlugin
         }
     }
 
+    /// <summary>
+    /// Data class for generated missions
+    /// </summary>
     private class MissionInfo
     {
         public uint? MissionId { get; set; }
@@ -1367,6 +1542,9 @@ public class Plugin : BasePlugin
         public string MissionCaption { get; set; }
     }
 
+    /// <summary>
+    /// Data class for RequestGroup data. Data used to generate missions.
+    /// </summary>
     private class RequestGroups
     {
         public uint Id { get; set; }
@@ -1379,6 +1557,9 @@ public class Plugin : BasePlugin
         public string DebugInfo { get; set; }
     }
 
+    /// <summary>
+    /// Inner data class for RequestGroups. Data for items to be chosen from in request mission generation.
+    /// </summary>
     private class ItemList
     {
         public List<uint> ItemIds { get; set; }
@@ -1390,6 +1571,9 @@ public class Plugin : BasePlugin
         public bool PickOne { get; set; }
     }
 
+    /// <summary>
+    /// Data class for reward item generation.
+    /// </summary>
     private class RewardGroups
     {
         public uint Id { get; set; }
@@ -1399,6 +1583,9 @@ public class Plugin : BasePlugin
         public List<int> ItemQuality { get; set; }
     }
 
+    /// <summary>
+    /// Category request belongs to
+    /// </summary>
     private enum RequestCategory
     {
         None = 0,
@@ -1417,6 +1604,9 @@ public class Plugin : BasePlugin
         Misc
     }
 
+    /// <summary>
+    /// Dictates which special conditions a mission can be tied to.
+    /// </summary>
     private enum Special
     {
         None = 0,
