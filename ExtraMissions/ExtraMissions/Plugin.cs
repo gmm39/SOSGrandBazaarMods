@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using BepInEx;
 using BepInEx.Configuration;
@@ -158,11 +159,9 @@ public class Plugin : BasePlugin
                     langMan.GetLocalizeText(LocalizeTextTableType.MissionCaptionText, mission.CaptionId).Replace("\n", " "),
             }).ToList();
 
-            if (_debugLogging.Value)
-            {
-                var result = toSave.Aggregate("OnGameSave:\n", (current, info) => current + $"Saving mission {info.MissionId}\n");
-                Log.LogMessage(result.TrimEnd());
-            }
+            if (_debugLogging.Value && toSave.Count > 0)
+                Log.LogMessage($"OnGameSave: Saving mission(s) {toSave.Join(x => x.MissionId.ToString())}");
+            
 
             var success = JsonHandler.Write(SavePathBase + $"Save{slot}.json", toSave);
 
@@ -243,13 +242,12 @@ public class Plugin : BasePlugin
             foreach (var item in orderDatas)
             {
                 if (FinalMissions.Contains(item.Id) &&
-                    item.State is MissionManager.OrderState.Complete or MissionManager.OrderState.OpenShop)
-                {
+                    item.State is MissionManager.OrderState.Complete or MissionManager.OrderState.OpenShop) 
                     _availableMissions.Add(item);
-                    if (_debugLogging.Value)
-                        Log.LogMessage($"RefreshAvailableMissions: Mission {item.Id} added to available missions!");
-                }
             }
+            
+            if (_debugLogging.Value)
+                Log.LogMessage($"RefreshAvailableMissions: Mission(s) {_availableMissions.Join(x => x.Id.ToString())} available!");
         }
 
         /// <summary>
@@ -798,10 +796,7 @@ public class Plugin : BasePlugin
         private static void ApplyRequest(ResidentMissionMasterData mission, MissionInfo request)
         {
             if (_debugLogging.Value)
-            {
-                Log.LogMessage("ApplyRequest:\n" + $"MissionId: {mission.Id}\n" + $"Request Information:\n" +
-                               $"{JsonSerializer.Serialize(request, new JsonSerializerOptions { WriteIndented = true })}");
-            }
+                Log.LogMessage("ApplyRequest:\n" + $"   MissionId: {mission.Id}\n" + $"{request}");
 
             // Set rewards
             mission.RewardCategory = RewardsType.Item;
@@ -912,7 +907,7 @@ public class Plugin : BasePlugin
                 var output = "UpdateQuality:\n";
                 foreach (var (key, value) in QualityDict)
                 {
-                    output += $"{key,-8}: {value,-2} | {(value / 2),-3:F1} stars\n";
+                    output += $"   {key,-8}: {value,-2} | {(value / 2.0f),-3:F1} stars\n";
                 }
                 Log.LogMessage(output.TrimEnd());
             }
@@ -1540,6 +1535,53 @@ public class Plugin : BasePlugin
         public string MissionName { get; set; }
         public string MissionCondition { get; set; }
         public string MissionCaption { get; set; }
+        
+        public override string ToString()
+        {
+            var sb = new StringBuilder();
+    
+            if(MissionId != null) sb.AppendLine($"   MissionId: {MissionId.ToString()}");
+            sb.AppendLine("   | Required Items                          |");
+            
+            if (ItemId?.Count > 0)
+            {
+                sb.AppendLine("   | Ids     | Type     | Quantity | Quality |");
+                
+                for (var i = 0; i < ItemId.Count(x => x != 0); i++)
+                {
+                    var id = i < ItemId.Count ? ItemId[i].ToString() : "N/A";
+                    var type = i < ItemType?.Count ? ItemType[i].ToString() : "N/A";
+                    var quantity = i < ItemStack?.Count ? ItemStack[i].ToString() : "N/A";
+                    var quality = i < ItemQuality?.Count ? ItemQuality[i].ToString() : "N/A";
+            
+                    sb.AppendLine($"   | {id,-7} | {type,-8} | {quantity,-8} | {quality,-7} |");
+                }
+            }
+            else
+            {
+                sb.AppendLine("   No required items");
+            }
+    
+            sb.AppendLine();
+            sb.AppendLine("   | RewardItem                   |");
+            
+            if (RewardItemId > 0)
+            {
+                sb.AppendLine("   | Ids     | Quantity | Quality |");
+                sb.AppendLine($"   | {RewardItemId,-7} | {RewardItemStack,-8} | {RewardItemQuality,-7} |");
+            }
+            else
+            {
+                sb.AppendLine("   No reward item");
+            }
+    
+            sb.AppendLine();
+            sb.AppendLine($"   Name:      {MissionName ?? "N/A"}");
+            sb.AppendLine($"   Condition: {MissionCondition ?? "N/A"}");
+            sb.AppendLine($"   Caption:   {MissionCaption ?? "N/A"}");
+    
+            return sb.ToString().TrimEnd();
+        }
     }
 
     /// <summary>
