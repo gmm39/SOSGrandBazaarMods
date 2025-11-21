@@ -224,6 +224,9 @@ public class Plugin : BasePlugin
             RefreshAvailableMissions(__instance.OrderDatas);
         }
 
+        /// <summary>
+        /// Updates the quality tables and attempts to generate a new mission.
+        /// </summary>
         [HarmonyPatch(typeof(MissionManager), "UpdateOnChangeDate")]
         [HarmonyPostfix]
         private static void OnChangeDate()
