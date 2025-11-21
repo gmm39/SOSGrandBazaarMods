@@ -70,10 +70,12 @@ public class Plugin : BasePlugin
         private static readonly Random Rnd;
         private static readonly string RequestGroupsPath;
         private static readonly string RewardGroupsPath;
+        private static readonly string DialogDataPath;
         private static string SavePathBase;
 
         private static List<RequestGroups> _requestGroups;
         private static List<RewardGroups> _rewardGroups;
+        private static List<DialogData> _dialogData;
 
         private static readonly HashSet<uint> FinalMissions;
         private static List<MissionManager.OrderData> _availableMissions;
@@ -88,6 +90,7 @@ public class Plugin : BasePlugin
 
             RequestGroupsPath = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/data/RequestGroups.json");
             RewardGroupsPath = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/data/RewardGroups.json");
+            DialogDataPath = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/data/DialogData.json");
             SavePathBase = Path.Combine(Paths.PluginPath, $"{MyPluginInfo.PLUGIN_NAME}/saves/");
 
             FinalMissions =
@@ -112,9 +115,10 @@ public class Plugin : BasePlugin
         {
             _requestGroups = JsonHandler.Read<List<RequestGroups>>(RequestGroupsPath);
             _rewardGroups = JsonHandler.Read<List<RewardGroups>>(RewardGroupsPath);
+            _dialogData = JsonHandler.Read<List<DialogData>>(DialogDataPath);
 
-            if (_requestGroups is null || _rewardGroups is null)
-                Log.LogError("RequestGroups or RewardGroups is null!");
+            if (_requestGroups is null || _rewardGroups is null || _dialogData is null)
+                Log.LogError("RequestGroups, RewardGroups, or DialogData is null!");
             else if (_debugLogging.Value) Log.LogMessage("LoadDataFiles: Data files loaded!");
 
             var duplicateIds = JsonHandler.ValidateUniqueIds(_requestGroups);
@@ -129,7 +133,7 @@ public class Plugin : BasePlugin
             if(invalidItemTypeIds.Count != 0)
                 Log.LogError($"RequestGroups contain mismatched or invalid ItemTypes: {invalidItemTypeIds.Join()}");
 
-            if (_rgPriceLog.Value) Troubleshoot.OutputPriceList(_requestGroups);
+            if (_rgPriceLog.Value) Debug.OutputPriceList(_requestGroups);
         }
 
         /// <summary>
@@ -839,14 +843,17 @@ public class Plugin : BasePlugin
             if (langMan.CurrentLanguage != Language.en) return;
             
             langMan.GetLocalizeTextData(LocalizeTextTableType.MissionNameText, mission.NameId).Text =
-                TextFormatter.FormatName(request.MissionName, 
+                TextHandler.FormatName(request.MissionName, 
                     langMan.GetLocalizeTextData(LocalizeTextTableType.CharacterNameText, mission.CharaId).Text);
             langMan.GetLocalizeTextData(LocalizeTextTableType.MissionConditionsText, mission.ConditionsTextId).Text =
-                TextFormatter.FormatName(request.MissionCondition, 
+                TextHandler.FormatName(request.MissionCondition, 
                     langMan.GetLocalizeTextData(LocalizeTextTableType.CharacterNameText, mission.CharaId).Text);
             langMan.GetLocalizeTextData(LocalizeTextTableType.MissionCaptionText, mission.CaptionId).Text =
-                TextFormatter.FormatName(request.MissionCaption, 
+                TextHandler.FormatName(request.MissionCaption, 
                     langMan.GetLocalizeTextData(LocalizeTextTableType.CharacterNameText, mission.CharaId).Text);
+            
+            TextHandler.ChangeStructure(mission.CharaId, mission.Id);
+            TextHandler.ChangeText(mission.CharaId, _dialogData.Find(x => x.CharaId == mission.CharaId).GetTextList());
         }
     }
 
@@ -1269,8 +1276,111 @@ public class Plugin : BasePlugin
     /// <summary>
     /// Helper functions for text replacements
     /// </summary>
-    private static class TextFormatter
+    private static class TextHandler
     {
+        private static Dictionary<uint, List<uint>> DiaStructDict;
+        private static Dictionary<uint, List<uint>> DialogDict;
+        private static Dictionary<uint, LocalizeTextTableType> TextTableDict;
+        
+        static TextHandler()
+        {
+            DiaStructDict = new Dictionary<uint, List<uint>>
+            {
+                { 100, [10176013, 90176023, 10176031, 90176053, 90176062] },
+                { 101, [10276013, 90276023, 10276031, 90276053, 90276062] },
+                { 102, [10376013, 90376023, 10376031, 90376053, 90376062] },
+                { 103, [10476013, 90476023, 10476031, 90476053, 90476062] },
+                { 104, [10576013, 90576023, 10576031, 90576053, 90576062] },
+                { 105, [10676013, 90676023, 10676031, 90676053, 90676062] },
+                { 200, [10776013, 90776023, 10776031, 90776053, 90776062] },
+                { 201, [10876013, 90876023, 10876031, 90876053, 90876062] },
+                { 202, [10976013, 90976023, 10976031, 90976053, 90976062] },
+                { 203, [11076013, 91076023, 11076031, 91076053, 91076062] },
+                { 204, [11176013, 91176023, 11176031, 91176053, 91176062] },
+                { 205, [11276013, 91276023, 11276031, 91276053, 91276062] },
+                { 400, [11376013, 91376023, 11376031, 91376053, 91376062] },
+                { 401, [11476013, 91476023, 11476031, 91476053, 91476062] },
+                { 402, [11576013, 91576023, 11576031, 91576053, 91576062] },
+                { 403, [11676013, 91676023, 11676031, 91676053, 91676062] },
+                { 404, [11776013, 91776023, 11776031, 91776053, 91776062] },
+                { 405, [11876013, 91876023, 11876031, 91876053, 91876062] },
+                { 406, [11976013, 91976023, 11976031, 91976053, 91976062] },
+                { 407, [12076013, 92076023, 12076031, 92076053, 92076062] },
+                { 408, [12176013, 92176023, 12176031, 92176053, 92176062] },
+                { 409, [12276013, 92276023, 12276031, 92276053, 92276062] },
+                { 410, [12376013, 92376023, 12376031, 92376053, 92376062] },
+                { 411, [12476013, 92476023, 12476031, 92476053, 92476062] },
+                { 412, [12576013, 92576023, 12576031, 92576053, 92576062] },
+                { 413, [12676013, 92676023, 12676031, 92676053, 92676062] },
+                { 414, [12776013, 92776023, 12776031, 92776053, 92776062] },
+                { 415, [12876013, 92876023, 12876031, 92876053, 92876062] }
+            };
+            
+            DialogDict = new Dictionary<uint, List<uint>>
+            {
+                { 100, [10176011, 10176012, 10176013, 90176021, 90176022, 90176023, 10176031, 90176051, 90176052, 90176053, 90176061, 90176062] },
+                { 101, [10276011, 10276012, 10276013, 90276021, 90276022, 90276023, 10276031, 90276051, 90276052, 90276053, 90276061, 90276062] },
+                { 102, [10376011, 10376012, 10376013, 90376021, 90376022, 90376023, 10376031, 90376051, 90376052, 90376053, 90376061, 90376062] },
+                { 103, [10476011, 10476012, 10476013, 90476021, 90476022, 90476023, 10476031, 90476051, 90476052, 90476053, 90476061, 90476062] },
+                { 104, [10576011, 10576012, 10576013, 90576021, 90576022, 90576023, 10576031, 90576051, 90576052, 90576053, 90576061, 90576062] },
+                { 105, [10676011, 10676012, 10676013, 90676021, 90676022, 90676023, 10676031, 90676051, 90676052, 90676053, 90676061, 90676062] },
+                { 200, [10776011, 10776012, 10776013, 90776021, 90776022, 90776023, 10776031, 90776051, 90776052, 90776053, 90776061, 90776062] },
+                { 201, [10876011, 10876012, 10876013, 90876021, 90876022, 90876023, 10876031, 90876051, 90876052, 90876053, 90876061, 90876062] },
+                { 202, [10976011, 10976012, 10976013, 90976021, 90976022, 90976023, 10976031, 90976051, 90976052, 90976053, 90976061, 90976062] },
+                { 203, [11076011, 11076012, 11076013, 91076021, 91076022, 91076023, 11076031, 91076051, 91076052, 91076053, 91076061, 91076062] },
+                { 204, [11176011, 11176012, 11176013, 91176021, 91176022, 91176023, 11176031, 91176051, 91176052, 91176053, 91176061, 91176062] },
+                { 205, [11276011, 11276012, 11276013, 91276021, 91276022, 91276023, 11276031, 91276051, 91276052, 91276053, 91276061, 91276062] },
+                { 400, [11376011, 11376012, 11376013, 91376021, 91376022, 91376023, 11376031, 91376051, 91376052, 91376053, 91376061, 91376062] },
+                { 401, [11476011, 11476012, 11476013, 91476021, 91476022, 91476023, 11476031, 91476051, 91476052, 91476053, 91476061, 91476062] },
+                { 402, [11576011, 11576012, 11576013, 91576021, 91576022, 91576023, 11576031, 91576051, 91576052, 91576053, 91576061, 91576062] },
+                { 403, [11676011, 11676012, 11676013, 91676021, 91676022, 91676023, 11676031, 91676051, 91676052, 91676053, 91676061, 91676062] },
+                { 404, [11776011, 11776012, 11776013, 91776021, 91776022, 91776023, 11776031, 91776051, 91776052, 91776053, 91776061, 91776062] },
+                { 405, [11876011, 11876012, 11876013, 91876021, 91876022, 91876023, 11876031, 91876051, 91876052, 91876053, 91876061, 91876062] },
+                { 406, [11976011, 11976012, 11976013, 91976021, 91976022, 91976023, 11976031, 91976051, 91976052, 91976053, 91976061, 91976062] },
+                { 407, [12076011, 12076012, 12076013, 92076021, 92076022, 92076023, 12076031, 92076051, 92076052, 92076053, 92076061, 92076062] },
+                { 408, [12176011, 12176012, 12176013, 92176021, 92176022, 92176023, 12176031, 92176051, 92176052, 92176053, 92176061, 92176062] },
+                { 409, [12276011, 12276012, 12276013, 92276021, 92276022, 92276023, 12276031, 92276051, 92276052, 92276053, 92276061, 92276062] },
+                { 410, [12376011, 12376012, 12376013, 92376021, 92376022, 92376023, 12376031, 92376051, 92376052, 92376053, 92376061, 92376062] },
+                { 411, [12476011, 12476012, 12476013, 92476021, 92476022, 92476023, 12476031, 92476051, 92476052, 92476053, 92476061, 92476062] },
+                { 412, [12576011, 12576012, 12576013, 92576021, 92576022, 92576023, 12576031, 92576051, 92576052, 92576053, 92576061, 92576062] },
+                { 413, [12676011, 12676012, 12676013, 92676021, 92676022, 92676023, 12676031, 92676051, 92676052, 92676053, 92676061, 92676062] },
+                { 414, [12776011, 12776012, 12776013, 92776021, 92776022, 92776023, 12776031, 92776051, 92776052, 92776053, 92776061, 92776062] },
+                { 415, [12876011, 12876012, 12876013, 92876021, 92876022, 92876023, 12876031, 92876051, 92876052, 92876053, 92876061, 92876062] }
+            };
+
+            TextTableDict = new Dictionary<uint, LocalizeTextTableType>
+            {
+                { 100, LocalizeTextTableType.TalkText_Ulysse },
+                { 101, LocalizeTextTableType.TalkText_Diluca },
+                { 102, LocalizeTextTableType.TalkText_Lloyd },
+                { 103, LocalizeTextTableType.TalkText_Agi },
+                { 104, LocalizeTextTableType.TalkText_Schmitt },
+                { 105, LocalizeTextTableType.TalkText_Arata },
+                { 200, LocalizeTextTableType.TalkText_Shellfa },
+                { 201, LocalizeTextTableType.TalkText_Enju },
+                { 202, LocalizeTextTableType.TalkText_Freya },
+                { 203, LocalizeTextTableType.TalkText_Maple },
+                { 204, LocalizeTextTableType.TalkText_Kagetu },
+                { 205, LocalizeTextTableType.TalkText_Deanna },
+                { 400, LocalizeTextTableType.TalkText_Felix },
+                { 401, LocalizeTextTableType.TalkText_Erich },
+                { 402, LocalizeTextTableType.TalkText_Stewart },
+                { 403, LocalizeTextTableType.TalkText_Sania },
+                { 404, LocalizeTextTableType.TalkText_Merini },
+                { 405, LocalizeTextTableType.TalkText_Mina },
+                { 406, LocalizeTextTableType.TalkText_Wilber },
+                { 407, LocalizeTextTableType.TalkText_Claire },
+                { 408, LocalizeTextTableType.TalkText_Kevin },
+                { 409, LocalizeTextTableType.TalkText_Isaac },
+                { 410, LocalizeTextTableType.TalkText_Nerine },
+                { 411, LocalizeTextTableType.TalkText_Sigyn },
+                { 412, LocalizeTextTableType.TalkText_Lalamie },
+                { 413, LocalizeTextTableType.TalkText_Mucho },
+                { 414, LocalizeTextTableType.TalkText_Harold },
+                { 415, LocalizeTextTableType.TalkText_Shereen }
+            };
+        }
+        
         /// <summary>
         /// Replaces instances of {char} with the proper character's name
         /// </summary>
@@ -1280,6 +1390,56 @@ public class Plugin : BasePlugin
         public static string FormatName(string input, string charName)
         {
             return input.Replace("{char}", charName);
+        }
+        
+        /// <summary>
+        /// Alter dialog structure to for the given character and mission
+        /// </summary>
+        /// <remarks>
+        /// Since additional dialogue cannot be added, defaults dialog structure to the lowest number of dialog boxes
+        /// that exists for the given dialog portion. This is 3 intro text, 3 post request text, 1 request check text,
+        /// 3 request filled text, and 2 request unfilled text.
+        /// </remarks>
+        /// <param name="charaId">Id of character whose dialog structure is to be altered</param>
+        /// <param name="missionId">Id of mission dialog to be altered</param>
+        public static void ChangeStructure(uint charaId, uint missionId)
+        {
+            if (!DiaStructDict.TryGetValue(charaId, out var diaList)) return;
+
+            var talkList = Il2CppHelper.ToSystemList(MasterDataManager.Instance.NPCTalkMaster.list)
+                .Where(x => diaList.Contains(x.Id)).ToList();
+
+            talkList[0].EndActionType = TalkMasterData.ActionType.MissonOrder;
+            talkList[0].EndActionValue1 = missionId;
+            talkList[0].NextTalkMasterId = 0;
+            
+            talkList[1].NextTalkMasterId = 0;
+            
+            talkList[2].EndActionType = TalkMasterData.ActionType.MissonOrder;
+            talkList[2].EndActionValue1 = missionId;
+            talkList[2].NextTalkMasterId = 0;
+            
+            talkList[3].EndActionType = TalkMasterData.ActionType.SelectItem;
+            talkList[3].NextTalkMasterId = 0;
+            
+            talkList[4].NextTalkMasterId = 0;
+        }
+
+        /// <summary>
+        /// Changes dialog of the final quest of the given character to the supplied new text.
+        /// </summary>
+        /// <param name="charaId">Character whose final quest dialog will be changed</param>
+        /// <param name="newDia">List of 12 strings to change request dialog to</param>
+        public static void ChangeText(uint charaId, List<string> newDia)
+        {
+            if (!DialogDict.TryGetValue(charaId, out var diaList) || diaList.Count != newDia.Count) return;
+
+            var langMan = LanguageManager.Instance;
+
+            foreach (var (diaNum, newText) in diaList.Zip(newDia))
+            {
+                langMan.GetLocalizeTextData(TextTableDict[charaId], diaNum).Text = newText;
+            }
         }
     }
 
@@ -1408,7 +1568,7 @@ public class Plugin : BasePlugin
     /// <summary>
     /// Functions useful in troubleshooting or otherwise generating data useful for development
     /// </summary>
-    private class Troubleshoot
+    private class Debug
     {
         /// <summary>
         /// Outputs csv style price list of every item in supplied list of RequestGroups. Based on base item price and quantity.
@@ -1623,6 +1783,33 @@ public class Plugin : BasePlugin
         public List<uint> ItemIds { get; set; }
         public List<int> ItemStack { get; set; }
         public List<int> ItemQuality { get; set; }
+    }
+    
+    /// <summary>
+    /// Data class for dialog changes.
+    /// </summary>
+    private class DialogData
+    {
+        public uint Id { get; set; }
+        public uint CharaId { get; set; }
+        public string Intro1 { get; set; }
+        public string Intro2 { get; set; }
+        public string Intro3 { get; set; }
+        public string PostRequest1 { get; set; }
+        public string PostRequest2 { get; set; }
+        public string PostRequest3 { get; set; }
+        public string CheckRequest { get; set; }
+        public string Fulfilled1 { get; set; }
+        public string Fulfilled2 { get; set; }
+        public string Fulfilled3 { get; set; }
+        public string Unfulfilled1 { get; set; }
+        public string Unfulfilled2 { get; set; }
+        
+        public List<string> GetTextList()
+        {
+            return [ Intro1, Intro2, Intro3, PostRequest1, PostRequest2, PostRequest3, CheckRequest, Fulfilled1,
+                Fulfilled2, Fulfilled3, Unfulfilled1, Unfulfilled2 ];
+        }
     }
 
     /// <summary>
