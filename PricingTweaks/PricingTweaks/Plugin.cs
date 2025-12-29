@@ -45,13 +45,17 @@ public class Plugin : BasePlugin
             "Enable tweaks in 05 ITEMS");
 
         AnimalBazaarPriceMulti = Config.Bind("-----01 ANIMALS-----", "Animal_Bazaar_Price_Multiplier", 1.0f,
-            "Multiplies bazaar animal prices by the given amount.");
+            "Multiplies bazaar animal prices by the given amount." + 
+            "\nSetting to 0 will make price 1G");
         ExpansionPriceMulti = Config.Bind("-----02 EXPANSIONS-----", "Expansion_Price_Multiplier", 1.0f,
-            "Multiplies the expansion prices by the given amount.");
+            "Multiplies the expansion prices by the given amount." + 
+            "\nSetting to 0 will make price 1G");
         DecorPriceMulti = Config.Bind("-----03 DECOR-----", "Decor_Price_Multiplier", 1.0f,
-            "Multiplies decor prices by the given amount.");
+            "Multiplies decor prices by the given amount." +
+            "\nSetting to 0 will make price 1G");
         ClothingPriceMulti = Config.Bind("-----04 CLOTHING-----", "Clothing_Price_Multiplier", 1.0f,
-            "Multiplies clothing prices by the given amount.");
+            "Multiplies clothing prices by the given amount." +
+            "\nSetting to 0 will make price 1G");
         
         ShopBuyPriceMulti = Config.Bind("-----05 ITEMS-----", "Shop_Buy_Price_Multiplier", 1.4f,
             "Multiplies item prices when buying from a shop by the given amount. GameDefault: 1.4");
@@ -98,7 +102,7 @@ public class Plugin : BasePlugin
                     var price = (int)typeof(ShopAnimalMasterData).GetProperty("Price")?.GetValue(animal);
 
                     typeof(ShopAnimalMasterData).GetProperty("Price")
-                        ?.SetValue(animal, (int)(price * AnimalBazaarPriceMulti.Value));
+                        ?.SetValue(animal, Math.Clamp((int)(price * AnimalBazaarPriceMulti.Value), 1, int.MaxValue));
                 }
                 catch (System.NullReferenceException e)
                 {
@@ -112,7 +116,7 @@ public class Plugin : BasePlugin
         {
             foreach (var expansion in MasterDataManager.Instance.ExpansionMaster.list)
             {
-                expansion.Price = (int)(expansion.Price * ExpansionPriceMulti.Value);
+                expansion.Price = Math.Clamp((int)(expansion.Price * ExpansionPriceMulti.Value), 1, int.MaxValue);
             }
         }
 
@@ -124,7 +128,7 @@ public class Plugin : BasePlugin
 
             foreach (var item in MasterDataManager.Instance.ItemMasterData)
                 if (decorShopIds.Contains(item.Id))
-                    item.Price = (int)(item.Price * DecorPriceMulti.Value);
+                    item.Price = Math.Clamp((int)(item.Price * DecorPriceMulti.Value), 1, int.MaxValue);
         }
         
         private static void ClothingPriceTweak()
@@ -137,7 +141,7 @@ public class Plugin : BasePlugin
                     if (priceProp != null && priceProp.CanWrite)
                     {
                         priceProp.SetValue(item,
-                            (int)(System.Convert.ToInt32(priceProp.GetValue(item)) * ClothingPriceMulti.Value));
+                            Math.Clamp((int)(System.Convert.ToInt32(priceProp.GetValue(item)) * ClothingPriceMulti.Value), 1, int.MaxValue));
                     }
                 }
                 catch (System.NullReferenceException e)
