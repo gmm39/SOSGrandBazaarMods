@@ -13,6 +13,7 @@ public class Plugin : BasePlugin
     private static new ManualLogSource Log;
     private static ConfigEntry<string> FarmNameChange;
     private static ConfigEntry<string> PlayerNameChange;
+    private static ConfigEntry<int> PlayerPronounChange;
 
     public override void Load()
     {
@@ -26,6 +27,13 @@ public class Plugin : BasePlugin
             "PlayerNameChange",
             "DefaultName",
             "Enter the name for your character. MAX LENGTH 8 characters!");
+        PlayerPronounChange = Config.Bind("General",
+            "PlayerPronounChange",
+            2,
+            "Enter the number for your preferred pronouns for your character:" + 
+            "\n0 = he/him" +
+            "\n1 = she/her" +
+            "\n2 = they/them");
 
         Log = base.Log;
         Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
@@ -41,6 +49,7 @@ public class Plugin : BasePlugin
         {
             __instance.FarmName = FarmNameChange.Value;
             __instance.PlayerName = PlayerNameChange.Value;
+            __instance.PlayerGender = PlayerPronounChange.Value;
         }
     }
 }
